@@ -16,6 +16,8 @@ std::vector<GDGameRecord>  gd_config_get_games(void);
 void                       gd_config_set_games(const std::vector<GDGameRecord> &g);
 std::vector<std::string>   gd_config_get_dirs(void);
 void                       gd_config_set_dirs(const std::vector<std::string> &d);
+std::vector<std::string>   gd_config_get_scenes(void);
+void                       gd_config_set_scenes(const std::vector<std::string> &s);
 std::vector<std::string>   gd_config_get_default_dirs(void);
 std::vector<std::string>   gd_config_resolve_default_dirs(void);
 

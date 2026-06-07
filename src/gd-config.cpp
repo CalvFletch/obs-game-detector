@@ -26,6 +26,7 @@
 static pthread_mutex_t           s_cfg_mutex;
 static std::vector<GDGameRecord> s_games;
 static std::vector<std::string>  s_dirs;
+static std::vector<std::string>  s_scenes;
 
 /* ── helpers ──────────────────────────────────────────────────────── */
 static std::string today_str()
@@ -66,6 +67,22 @@ void gd_config_set_dirs(const std::vector<std::string> &d)
 {
 	pthread_mutex_lock(&s_cfg_mutex);
 	s_dirs = d;
+	pthread_mutex_unlock(&s_cfg_mutex);
+	gd_config_save();
+}
+
+std::vector<std::string> gd_config_get_scenes()
+{
+	pthread_mutex_lock(&s_cfg_mutex);
+	auto c = s_scenes;
+	pthread_mutex_unlock(&s_cfg_mutex);
+	return c;
+}
+
+void gd_config_set_scenes(const std::vector<std::string> &s)
+{
+	pthread_mutex_lock(&s_cfg_mutex);
+	s_scenes = s;
 	pthread_mutex_unlock(&s_cfg_mutex);
 	gd_config_save();
 }
@@ -118,6 +135,19 @@ void gd_config_load()
 		s_dirs = gd_config_resolve_default_dirs();
 	}
 
+	/* Scenes — which OBS scenes get the Gaming Audio group */
+	obs_data_array_t *sarr = obs_data_get_array(data, "scenes");
+	if (sarr) {
+		size_t n = obs_data_array_count(sarr);
+		for (size_t i = 0; i < n; i++) {
+			obs_data_t *item = obs_data_array_item(sarr, i);
+			const char *v = obs_data_get_string(item, "value");
+			if (v && *v) s_scenes.emplace_back(v);
+			obs_data_release(item);
+		}
+		obs_data_array_release(sarr);
+	}
+
 	obs_data_release(data);
 
 	/* Merge any newly-resolved paths not already in the list.
@@ -151,8 +181,9 @@ void gd_config_save()
 
 	/* Snapshot under lock */
 	pthread_mutex_lock(&s_cfg_mutex);
-	auto games_snap = s_games;
-	auto dirs_snap  = s_dirs;
+	auto games_snap  = s_games;
+	auto dirs_snap   = s_dirs;
+	auto scenes_snap = s_scenes;
 	pthread_mutex_unlock(&s_cfg_mutex);
 
 	obs_data_t *root = obs_data_create();
@@ -179,6 +210,16 @@ void gd_config_save()
 	obs_data_set_array(root, "dirs", darr);
 	obs_data_array_release(darr);
 
+	obs_data_array_t *sarr2 = obs_data_array_create();
+	for (auto &sc : scenes_snap) {
+		obs_data_t *item = obs_data_create();
+		obs_data_set_string(item, "value", sc.c_str());
+		obs_data_array_push_back(sarr2, item);
+		obs_data_release(item);
+	}
+	obs_data_set_array(root, "scenes", sarr2);
+	obs_data_array_release(sarr2);
+
 	obs_data_save_json_safe(root, path, ".tmp", ".bak");
 	obs_data_release(root);
 	bfree(path);
@@ -189,6 +230,7 @@ void gd_config_unload()
 	gd_config_save();
 	s_games.clear();
 	s_dirs.clear();
+	s_scenes.clear();
 	pthread_mutex_destroy(&s_cfg_mutex);
 }
 

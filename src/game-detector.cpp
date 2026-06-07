@@ -73,7 +73,6 @@ typedef struct {
 /* ── shared state ───────────────────────────────────────────────── */
 static pthread_mutex_t s_mutex;
 
-static char s_scene[256] = GD_DEFAULT_SCENE;
 static char s_group[256] = GD_DEFAULT_GROUP;
 static int  s_color      = GD_DEFAULT_COLOR;
 
@@ -531,30 +530,52 @@ static void add_game_source(const char *game_name, const char *capture_exe)
 	obs_source_set_audio_mixers(source, 0x03);
 
 	pthread_mutex_lock(&s_mutex);
-	char group_name[256], scene_name[256];
+	char group_name[256];
 	strncpy(group_name, s_group, 255);
-	strncpy(scene_name, s_scene, 255);
 	int color = s_color;
 	pthread_mutex_unlock(&s_mutex);
+
+	/* Get configured target scenes; fall back to default if none set */
+	auto target_scenes = gd_config_get_scenes();
+	if (target_scenes.empty())
+		target_scenes.push_back(GD_DEFAULT_SCENE);
 
 	bool placed = false;
 
 	obs_source_t *grp_src = obs_get_source_by_name(group_name);
-	if (!grp_src) {
-		obs_source_t *sc_src = obs_get_source_by_name(scene_name);
-		if (sc_src) {
-			obs_scene_t *scene = obs_scene_from_source(sc_src);
-			if (scene) {
+
+	/* Ensure the group exists in every target scene */
+	for (auto &scene_name : target_scenes) {
+		obs_source_t *sc_src = obs_get_source_by_name(scene_name.c_str());
+		if (!sc_src) continue;
+		obs_scene_t *scene = obs_scene_from_source(sc_src);
+		if (scene) {
+			if (!grp_src) {
 				grp_src = obs_source_create("group", group_name, NULL, NULL);
 				if (grp_src) {
-					obs_scene_add(scene, grp_src);
 					blog(LOG_INFO,
-					     "[obs-game-detector] Created group '%s' in scene '%s'",
-					     group_name, scene_name);
+					     "[obs-game-detector] Created group '%s'",
+					     group_name);
 				}
 			}
-			obs_source_release(sc_src);
+			/* Add group to scene if not already there */
+			if (grp_src && !obs_scene_find_source(scene, group_name)) {
+				obs_scene_add(scene, grp_src);
+				blog(LOG_INFO,
+				     "[obs-game-detector] Added group '%s' \u2192 scene '%s'",
+				     group_name, scene_name.c_str());
+			}
+			/* Emit reorder so UI refreshes */
+			if (grp_src) {
+				calldata_t cd = {};
+				calldata_set_ptr(&cd, "scene", scene);
+				signal_handler_signal(
+					obs_source_get_signal_handler(sc_src),
+					"reorder", &cd);
+				calldata_free(&cd);
+			}
 		}
+		obs_source_release(sc_src);
 	}
 
 	if (grp_src) {
@@ -603,38 +624,10 @@ static void add_game_source(const char *game_name, const char *capture_exe)
 		obs_source_release(grp_src);
 	}
 
-	if (placed) {
-		/* Emit "reorder" on the outer scene so the OBS scene panel
-		 * rebuilds the group's item list without needing a manual
-		 * collapse/uncollapse. */
-		obs_source_t *sc_ui = obs_get_source_by_name(scene_name);
-		if (sc_ui) {
-			obs_scene_t *sc = obs_scene_from_source(sc_ui);
-			if (sc) {
-				calldata_t cd = {};
-				calldata_set_ptr(&cd, "scene", sc);
-				signal_handler_signal(
-					obs_source_get_signal_handler(sc_ui),
-					"reorder", &cd);
-				calldata_free(&cd);
-			}
-			obs_source_release(sc_ui);
-		}
-	}
-
 	if (!placed) {
-		obs_source_t *sc_src = obs_get_source_by_name(scene_name);
-		if (sc_src) {
-			obs_scene_t *scene = obs_scene_from_source(sc_src);
-			if (scene) {
-				obs_sceneitem_t *item = obs_scene_add(scene, source);
-				if (item) set_item_color(item, color);
-				blog(LOG_INFO,
-				     "[obs-game-detector] Added '%s' \u2192 scene root (group not found)",
-				     game_name);
-			}
-			obs_source_release(sc_src);
-		}
+		blog(LOG_WARNING,
+		     "[obs-game-detector] Could not place '%s' \u2014 no target scenes configured",
+		     game_name);
 	}
 
 	obs_source_release(source);

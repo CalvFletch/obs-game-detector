@@ -10,6 +10,7 @@
 #include "game-detector.h"
 
 #include <obs-frontend-api.h>
+#include <util/bmem.h>
 
 #include <QTabWidget>
 #include <QVBoxLayout>
@@ -22,6 +23,7 @@
 #include <QHeaderView>
 #include <QCheckBox>
 #include <QTableWidgetItem>
+#include <QListWidget>
 #include <QMainWindow>
 
 GDSettingsDialog::GDSettingsDialog(QWidget *parent)
@@ -80,7 +82,21 @@ GDSettingsDialog::GDSettingsDialog(QWidget *parent)
 	dirs_lay->addLayout(dir_btns);
 
 	m_tabs->addTab(dirs_page, "Lookup Directories");
+	/* ── Tab 3: Target Scenes ────────────────────────────── */
+	auto *scenes_page = new QWidget;
+	auto *scenes_lay  = new QVBoxLayout(scenes_page);
 
+	auto *scenes_hint = new QLabel(
+		"Check the scenes that should receive the Gaming Audio group."
+		" Changes take effect for the next detected game.",
+		scenes_page);
+	scenes_hint->setWordWrap(true);
+	scenes_lay->addWidget(scenes_hint);
+
+	m_scenes = new QListWidget(scenes_page);
+	scenes_lay->addWidget(m_scenes);
+
+	m_tabs->addTab(scenes_page, "Target Scenes");
 	/* ── Dialog buttons ─────────────────────────────────────────── */
 	auto *btns = new QDialogButtonBox(
 		QDialogButtonBox::Ok | QDialogButtonBox::Cancel |
@@ -122,6 +138,25 @@ void GDSettingsDialog::loadData()
 		m_table->setCellWidget(i, 2, cell);
 	}
 
+	/* Tab 3: scenes — enumerate all OBS scenes; check configured ones */
+	{
+		auto enabled_scenes = gd_config_get_scenes();
+		m_scenes->clear();
+		char **scene_names = obs_frontend_get_scene_names();
+		if (scene_names) {
+			for (int i = 0; scene_names[i]; i++) {
+				auto *it = new QListWidgetItem(
+					QString::fromUtf8(scene_names[i]), m_scenes);
+				it->setFlags(it->flags() | Qt::ItemIsUserCheckable);
+				bool checked = false;
+				for (auto &s : enabled_scenes)
+					if (s == scene_names[i]) { checked = true; break; }
+				it->setCheckState(checked ? Qt::Checked : Qt::Unchecked);
+			}
+			bfree(scene_names);
+		}
+	}
+
 	auto dirs = gd_config_get_dirs();
 	m_dirs->clear();
 	for (auto &d : dirs)
@@ -154,6 +189,12 @@ void GDSettingsDialog::saveData()
 	for (int i = 0; i < m_dirs->count(); i++)
 		dirs.push_back(m_dirs->item(i)->text().toStdString());
 	gd_config_set_dirs(dirs);
+
+	std::vector<std::string> scenes;
+	for (int i = 0; i < m_scenes->count(); i++)
+		if (m_scenes->item(i)->checkState() == Qt::Checked)
+			scenes.push_back(m_scenes->item(i)->text().toStdString());
+	gd_config_set_scenes(scenes);
 }
 
 void GDSettingsDialog::onAddDir()

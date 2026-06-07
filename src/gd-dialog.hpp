@@ -23,4 +23,5 @@ private:
 	QTabWidget   *m_tabs;
 	QTableWidget *m_table;
 	QListWidget  *m_dirs;
+	QListWidget  *m_scenes;
 };
