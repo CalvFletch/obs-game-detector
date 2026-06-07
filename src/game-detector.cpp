@@ -665,18 +665,21 @@ static void remove_game_source(const char *game_name)
 			}
 		}
 		pthread_mutex_unlock(&s_mutex);
-		if (cb_ptr) {
-			/* Disconnect from group scene, not from the source itself */
+		/* Always remove the scene item from the group regardless of whether
+		 * the game is currently running (cb_ptr may be NULL if game already
+		 * exited but source was not cleaned up). */
+		{
 			pthread_mutex_lock(&s_mutex);
 			char grp[256];
 			strncpy(grp, s_group, 255);
 			pthread_mutex_unlock(&s_mutex);
 			obs_source_t *grp_src = obs_get_source_by_name(grp);
 			if (grp_src) {
-				signal_handler_disconnect(
-					obs_source_get_signal_handler(grp_src),
-					"item_remove", on_group_item_removed, cb_ptr);
-				/* Also explicitly remove the scene item so UI updates immediately */
+				if (cb_ptr) {
+					signal_handler_disconnect(
+						obs_source_get_signal_handler(grp_src),
+						"item_remove", on_group_item_removed, cb_ptr);
+				}
 				obs_scene_t *grp_scene = obs_group_from_source(grp_src);
 				if (grp_scene) {
 					obs_sceneitem_t *it = obs_scene_find_source(grp_scene, game_name);
@@ -684,8 +687,9 @@ static void remove_game_source(const char *game_name)
 				}
 				obs_source_release(grp_src);
 			}
-			delete (SourceReinstateCB *)cb_ptr;
 		}
+		if (cb_ptr)
+			delete (SourceReinstateCB *)cb_ptr;
 		obs_source_remove(src);
 		obs_source_release(src);
 		blog(LOG_INFO, "[obs-game-detector] Removed '%s'", game_name);
