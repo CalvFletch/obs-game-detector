@@ -19,9 +19,6 @@ extern "C" {
 void gd_start(void);
 void gd_stop(void);
 
-/* Called by settings UI when user changes config */
-void gd_apply_settings(const char *scene, const char *group, int poll_ms, int color);
-
 /* Opens the Tools menu settings dialog (Qt main thread) */
 void gd_open_dialog(void);
 

@@ -702,7 +702,7 @@ extern "C" void gd_add_source_if_running(const char *game_name)
 
 static bool remove_nonplayer_source_cb(void *unused, obs_source_t *src)
 {
-	UNUSED_PARAMETER(unused);
+	(void)unused;
 	const char *id   = obs_source_get_id(src);
 	const char *name = obs_source_get_name(src);
 	if (id && strcmp(id, "wasapi_process_output_capture") == 0 &&
@@ -1089,15 +1089,4 @@ void gd_stop(void)
 	pthread_mutex_destroy(&s_mutex);
 
 	gd_config_unload();
-}
-
-void gd_apply_settings(const char *scene, const char *group, int poll_ms,
-                       int color)
-{
-	(void)poll_ms; /* no longer used */
-	pthread_mutex_lock(&s_mutex);
-	if (scene) strncpy(s_scene, scene, 255);
-	if (group) strncpy(s_group, group, 255);
-	s_color = color;
-	pthread_mutex_unlock(&s_mutex);
 }
