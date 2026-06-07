@@ -37,9 +37,13 @@ endif()
 target_sources(
   ${CMAKE_PROJECT_NAME}
   PRIVATE src/plugin-main.c
-          src/game-detector.cpp
-          src/gd-config.cpp
+          src/gd_io.cpp
+          src/gd_skip_rules.cpp
+          src/gd_engine.cpp
+          src/gd_index.cpp
+          src/gd_watch.cpp
           src/gd-dialog.cpp
 )
+ 
 
 set_target_properties_plugin(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME ${_name})

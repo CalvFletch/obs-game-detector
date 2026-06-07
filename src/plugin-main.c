@@ -12,28 +12,38 @@
 #include <obs-module.h>
 #include <obs-frontend-api.h>
 #include <plugin-support.h>
-#include "game-detector.h"
+#include "gd_api.h"
 
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE(PLUGIN_NAME, "en-US")
 
-static void on_frontend_event(enum obs_frontend_event event, void *unused)
-{
+static void gd_start_task(void *unused) {
+	(void)unused;
+	gd_start();
+}
+
+static void on_frontend_event(enum obs_frontend_event event, void *unused) {
 	(void)unused;
 	if (event == OBS_FRONTEND_EVENT_FINISHED_LOADING) {
 		obs_log(LOG_INFO, "[obs-game-detector] OBS finished loading, starting detector");
-		gd_start();
+		// dont mutate the scene graph in this callback
+		// obs may still be wiring auth ui and holding source refs
+		obs_queue_task(OBS_TASK_UI, gd_start_task, NULL, false);
+	} else if (event == OBS_FRONTEND_EVENT_SCRIPTING_SHUTDOWN) {
+		obs_log(LOG_INFO,
+		         "[obs-game-detector] OBS shutting down, stopping detector");
+		// synchronous so we set STOPPING and disconnect hooks before
+		// closeEvent -> ClearSceneData -> ClearVolumeControls
+		gd_teardown();
 	}
 }
 
-static void open_dialog_cb(void *unused)
-{
+static void open_dialog_cb(void *unused) {
 	(void)unused;
 	gd_open_dialog();
 }
 
-bool obs_module_load(void)
-{
+bool obs_module_load(void) {
 	obs_log(LOG_INFO, "[obs-game-detector] module load");
 	obs_frontend_add_event_callback(on_frontend_event, NULL);
 	obs_frontend_add_tools_menu_item("Game Detector Settings",
@@ -41,9 +51,10 @@ bool obs_module_load(void)
 	return true;
 }
 
-void obs_module_unload(void)
-{
+void obs_module_unload(void) {
 	obs_frontend_remove_event_callback(on_frontend_event, NULL);
+	// SCRIPTING_SHUTDOWN already tore down in on_frontend_event; gd_stop is a
+	// no-op if we never started
 	gd_stop();
 	obs_log(LOG_INFO, "[obs-game-detector] module unload");
 }

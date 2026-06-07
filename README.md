@@ -1,61 +1,80 @@
-# obs-game-detector
+# OBS Game Detector
 
-OBS Studio plugin that auto-detects running Steam / Epic / GOG games and creates
-`wasapi_process_output_capture` audio sources inside a configured group with a
-colour label — no WebSocket, no external process, no Python.
+Automatically adds per game audio capture to OBS when you launch a game from Steam, Epic, GOG, or Ubisoft Connect. No scripts, no WebSocket, no extra apps running in the background
 
-## How it works
+When a supported game starts, the plugin creates an audio source for it and places it in a **Gaming Audio** group in your chosen scenes. When the game closes, the source is removed.
 
-- Polls running processes every 5 seconds (configurable)
-- Matches process paths against Steam / Epic / GOG install directories
-- Creates a `wasapi_process_output_capture` source for each detected game
-- Places the source inside the **"Gaming Audio"** group in the **"Gaming"** scene
-- Applies an orange colour label (configurable)
-- Removes sources when the game process exits
-- Handles BattlEye launchers (`_BE.exe` → actual game exe)
+## Requirements
 
-## Build (Windows)
+- Windows
+- OBS Studio 31 or later
 
-### Prerequisites
+## Install
 
-| Tool | Version |
-|------|---------|
-| Visual Studio | 2022 (Desktop C++ workload) |
-| CMake | >= 3.28 (already at `C:\Program Files\CMake`) |
-| Git | any |
+1. Download the latest **windows-x64** `.zip` from [Releases](https://github.com/CIsaa/obs-game-detector/releases).
+2. Extract the archive.
+3. Copy the `obs-game-detector` folder into:
 
-### Steps
+       %ProgramData%\obs-studio\plugins\
 
-```powershell
-cd "C:\Users\CIsaa\Desktop\Development\obs-game-detector"
+   You should end up with:
 
-# Configure — downloads OBS source + pre-built deps automatically
-cmake --preset windows-x64
+       %ProgramData%\obs-studio\plugins\obs-game-detector\bin\64bit\obs-game-detector.dll
 
-# Build
-cmake --build build_x64 --config RelWithDebInfo
+4. Restart OBS.
 
-# Install into OBS plugins folder
-cmake --install build_x64 --config RelWithDebInfo
-```
+Close OBS before updating the plugin. If Windows reports that the file is in use, OBS is still running.
 
-The `windows-x64` preset downloads the exact OBS source version listed in
-`buildspec.json` and matching pre-built deps. First configure takes a few
-minutes (~500 MB download).
+## First run
 
-The `--install` step copies `obs-game-detector.dll` to:
+On startup the plugin scans your game libraries and watches for new game processes. Games that were already running when OBS opened are picked up automatically.
 
-    C:\Program Files\obs-studio\obs-plugins\64bit\
+Default layout:
 
-Restart OBS after installing.
+- **Gaming Audio** group in the **Gaming** scene
+- Orange colour label on each source
+- A short notification when a new game is detected
 
-## Configuration
+Create a scene named **Gaming** in OBS if you do not have one yet, or change the target scenes in settings (below).
 
-OBS -> Tools -> Game Detector Settings
+## Settings
 
-| Setting | Default |
-|---------|---------|
-| Scene Name | Gaming |
-| Group Name | Gaming Audio |
-| Poll interval (sec) | 5 |
-| Source Colour | Orange |
+Open **Tools -> Game Detector Settings** in OBS.
+
+### Known Games
+
+Every game the plugin has seen is listed here.
+
+- Uncheck a game to stop OBS from creating an audio source for it.
+- **Remove** drops a game from the list. It will come back if detected again.
+- Set default audio tracks, or override tracks per game. Track options match your OBS **Settings -> Output -> Recording** track setup.
+
+### Lookup Directories
+
+The plugin finds games by matching running processes to install folders. Steam, Epic, GOG, and Ubisoft libraries are discovered automatically.
+
+Use **Add Directory** only for games installed outside those libraries (for example, a standalone folder on another drive). **Refresh Game Libraries** rescans your launchers if you installed a game recently.
+
+### Target Scenes
+
+Choose which OBS scenes receive the **Gaming Audio** group. Only checked scenes are updated.
+
+## Troubleshooting
+
+**A game was not detected**
+
+- Make sure the game is running and was launched from a known library path.
+- Open settings and click **Refresh Game Libraries**.
+- If the game lives outside Steam/Epic/GOG/Ubisoft, add its install folder under **Lookup Directories**.
+
+**Audio source was created for the wrong process**
+
+- Some launchers spawn helper processes before the real game. The plugin filters common launcher and anti-cheat processes; if something still slips through, disable that entry under **Known Games**.
+
+**Changes in settings did not apply**
+
+- Click **Apply** or **OK** before closing the dialog.
+
+## Building from source
+
+See [BUILD.md](BUILD.md).
