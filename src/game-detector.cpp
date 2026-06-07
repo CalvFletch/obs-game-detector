@@ -670,6 +670,12 @@ static void remove_game_source(const char *game_name)
 				signal_handler_disconnect(
 					obs_source_get_signal_handler(grp_src),
 					"item_remove", on_group_item_removed, cb_ptr);
+				/* Also explicitly remove the scene item so UI updates immediately */
+				obs_scene_t *grp_scene = obs_group_from_source(grp_src);
+				if (grp_scene) {
+					obs_sceneitem_t *it = obs_scene_find_source(grp_scene, game_name);
+					if (it) obs_sceneitem_remove(it);
+				}
 				obs_source_release(grp_src);
 			}
 			delete (SourceReinstateCB *)cb_ptr;
@@ -711,8 +717,9 @@ extern "C" void gd_add_source_if_running(const char *game_name)
 extern "C" void gd_sync_scenes(void)
 {
 	auto target_scenes = gd_config_get_scenes();
-	if (target_scenes.empty())
-		target_scenes.push_back(GD_DEFAULT_SCENE);
+	/* NOTE: do NOT apply the GD_DEFAULT_SCENE fallback here.
+	 * If the user has unchecked everything, we want to remove the group
+	 * from all scenes, not keep it in the default one. */
 
 	pthread_mutex_lock(&s_mutex);
 	char grp[256];
