@@ -191,9 +191,10 @@ void gd_config_save()
 	obs_data_array_t *arr = obs_data_array_create();
 	for (auto &r : games_snap) {
 		obs_data_t *item = obs_data_create();
-		obs_data_set_string(item, "name",      r.name.c_str());
-		obs_data_set_string(item, "last_seen", r.last_seen.c_str());
-		obs_data_set_bool  (item, "enabled",   r.enabled);
+		obs_data_set_string(item, "name",          r.name.c_str());
+		obs_data_set_string(item, "last_seen",     r.last_seen.c_str());
+		obs_data_set_bool  (item, "enabled",       r.enabled);
+		obs_data_set_bool  (item, "capture_video", r.capture_video);
 		obs_data_array_push_back(arr, item);
 		obs_data_release(item);
 	}
@@ -249,9 +250,10 @@ void gd_config_record_game(const char *display_name)
 		}
 	}
 	GDGameRecord r;
-	r.name      = display_name;
-	r.last_seen = today;
-	r.enabled   = true;
+	r.name          = display_name;
+	r.last_seen     = today;
+	r.enabled       = true;
+	r.capture_video = false;
 	s_games.push_back(r);
 	pthread_mutex_unlock(&s_cfg_mutex);
 	gd_config_save();
@@ -272,8 +274,20 @@ bool gd_config_is_disabled(const char *display_name)
 	return false; /* not in list → enabled by default */
 }
 
-/* Substrings that identify a path as a game install directory.
- * Checked by the detector (is_game_path) and displayed read-only in the dialog. */
+bool gd_config_is_video_enabled(const char *display_name)
+{
+        if (!display_name || !*display_name) return false;
+        pthread_mutex_lock(&s_cfg_mutex);
+        for (auto &r : s_games) {
+                if (r.name == display_name) {
+                        bool en = r.capture_video;
+                        pthread_mutex_unlock(&s_cfg_mutex);
+                        return en;
+                }
+        }
+        pthread_mutex_unlock(&s_cfg_mutex);
+        return false; /* not in list → video disabled by default */
+}
 static const char *const DEFAULT_GAME_DIRS[] = {
 	"steamapps\\common",
 	"steamlibrary",

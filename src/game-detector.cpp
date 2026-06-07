@@ -431,6 +431,7 @@ static void set_item_color(obs_sceneitem_t *item, int color)
 
 /* Forward declarations */
 static void add_game_source(const char *game_name, const char *capture_exe);
+static void add_game_video_source(const char *game_name, const char *capture_exe);
 static void show_obs_notification(const char *game_name);
 
 /* Callback data for the group scene "item_remove" signal */
@@ -718,6 +719,95 @@ extern "C" void gd_remove_source(const char *game_name)
 	remove_game_source(game_name);
 }
 
+/* ── Video (game_capture) source helpers ────────────────────────── */
+
+static void add_game_video_source(const char *game_name, const char *capture_exe)
+{
+	if (!gd_config_is_video_enabled(game_name)) return;
+
+	/* Build video source name so it doesn't clash with the audio source */
+	char vname[512];
+	snprintf(vname, sizeof(vname), "%s (Video)", game_name);
+
+	auto target_scenes = gd_config_get_scenes();
+	if (target_scenes.empty())
+		target_scenes.push_back(GD_DEFAULT_SCENE);
+
+	/* Early-out: if already present in the first target scene, skip */
+	{
+		obs_source_t *sc = obs_get_source_by_name(target_scenes[0].c_str());
+		if (sc) {
+			obs_scene_t *scene = obs_scene_from_source(sc);
+			bool found = scene && obs_scene_find_source(scene, vname) != nullptr;
+			obs_source_release(sc);
+			if (found) return;
+		}
+	}
+
+	/* Create or update the game_capture source */
+	obs_data_t *settings = obs_data_create();
+	obs_data_set_int(settings, "mode", 1); /* 1 = specific window */
+	char window_str[512];
+	snprintf(window_str, sizeof(window_str), "::%s", capture_exe);
+	obs_data_set_string(settings, "window", window_str);
+
+	obs_source_t *source = obs_get_source_by_name(vname);
+	if (!source)
+		source = obs_source_create("game_capture", vname, settings, NULL);
+	else
+		obs_source_update(source, settings);
+	obs_data_release(settings);
+
+	if (!source) {
+		blog(LOG_WARNING, "[obs-game-detector] Failed to create video source '%s'", vname);
+		return;
+	}
+
+	/* Place in each target scene directly (not in the audio group) */
+	for (auto &scene_name : target_scenes) {
+		obs_source_t *sc_src = obs_get_source_by_name(scene_name.c_str());
+		if (!sc_src) continue;
+		obs_scene_t *scene = obs_scene_from_source(sc_src);
+		if (scene && !obs_scene_find_source(scene, vname)) {
+			obs_scene_add(scene, source);
+			blog(LOG_INFO, "[obs-game-detector] Added video source '%s' \u2192 scene '%s'",
+			     vname, scene_name.c_str());
+		}
+		obs_source_release(sc_src);
+	}
+
+	obs_source_release(source);
+}
+
+static void remove_game_video_source(const char *game_name)
+{
+	char vname[512];
+	snprintf(vname, sizeof(vname), "%s (Video)", game_name);
+
+	obs_source_t *src = obs_get_source_by_name(vname);
+	if (!src) return;
+
+	/* Remove from every scene it may live in */
+	char **all = obs_frontend_get_scene_names();
+	if (all) {
+		for (int i = 0; all[i]; i++) {
+			obs_source_t *sc_src = obs_get_source_by_name(all[i]);
+			if (!sc_src) continue;
+			obs_scene_t *scene = obs_scene_from_source(sc_src);
+			if (scene) {
+				obs_sceneitem_t *it = obs_scene_find_source(scene, vname);
+				if (it) obs_sceneitem_remove(it);
+			}
+			obs_source_release(sc_src);
+		}
+		bfree(all);
+	}
+
+	obs_source_remove(src);
+	obs_source_release(src);
+	blog(LOG_INFO, "[obs-game-detector] Removed video source '%s'", vname);
+}
+
 /* Public API — called from dialog when user re-checks a game;
  * adds the source immediately if the game is currently running. */
 extern "C" void gd_add_source_if_running(const char *game_name)
@@ -734,6 +824,28 @@ extern "C" void gd_add_source_if_running(const char *game_name)
 	pthread_mutex_unlock(&s_mutex);
 	if (gn[0])
 		add_game_source(gn, ce);
+}
+
+/* Public API — video source versions */
+extern "C" void gd_remove_video_source(const char *game_name)
+{
+	remove_game_video_source(game_name);
+}
+
+extern "C" void gd_add_video_source_if_running(const char *game_name)
+{
+	char gn[256] = {}, ce[MAX_PATH_LEN] = {};
+	pthread_mutex_lock(&s_mutex);
+	for (int i = 0; i < s_seen_count; i++) {
+		if (strcmp(s_seen[i].display_name, game_name) == 0) {
+			strncpy(gn, s_seen[i].display_name, sizeof(gn) - 1);
+			strncpy(ce, s_seen[i].capture_exe,  sizeof(ce) - 1);
+			break;
+		}
+	}
+	pthread_mutex_unlock(&s_mutex);
+	if (gn[0])
+		add_game_video_source(gn, ce);
 }
 
 /* Public API — called from dialog after scene selection changes.
@@ -949,6 +1061,7 @@ static void on_process_start_with_path(const char *exe, const char *full_path)
 
 	blog(LOG_INFO, "[obs-game-detector] START %s \u2192 %s", exe, game_name);
 	add_game_source(game_name, capture_exe);
+	add_game_video_source(game_name, capture_exe);
 }
 
 /* Called for every process stop — from WMI callbacks */

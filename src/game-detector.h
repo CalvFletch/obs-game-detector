@@ -31,7 +31,9 @@ void gd_add_source_if_running(const char *game_name);
 /* Sync group presence after scene list changes:
  * removes group from scenes no longer selected, re-places in new ones */
 void gd_sync_scenes(void);
-
+/* Video (game_capture) source management */
+void gd_remove_video_source(const char *game_name);
+void gd_add_video_source_if_running(const char *game_name);
 #ifdef __cplusplus
 }
 #endif

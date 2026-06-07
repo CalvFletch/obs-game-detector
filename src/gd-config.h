@@ -9,6 +9,7 @@ struct GDGameRecord {
 	std::string name;
 	std::string last_seen;
 	bool        enabled;
+        bool        capture_video;
 };
 
 /* C++ API — dialog only */
@@ -34,6 +35,9 @@ void gd_config_record_game(const char *display_name);
 
 /* Returns true when audio source creation should be suppressed */
 bool gd_config_is_disabled(const char *display_name);
+
+/* Returns true when a game_capture video source should be created */
+bool gd_config_is_video_enabled(const char *display_name);
 
 /* Returns true when path_lower matches any entry in the lookup dirs list */
 bool gd_config_is_game_path(const char *path_lower);
