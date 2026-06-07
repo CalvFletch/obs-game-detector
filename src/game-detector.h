@@ -28,6 +28,10 @@ void gd_remove_source(const char *game_name);
 /* If game_name is currently running, add/restore its OBS audio source */
 void gd_add_source_if_running(const char *game_name);
 
+/* Sync group presence after scene list changes:
+ * removes group from scenes no longer selected, re-places in new ones */
+void gd_sync_scenes(void);
+
 #ifdef __cplusplus
 }
 #endif

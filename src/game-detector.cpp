@@ -694,6 +694,65 @@ extern "C" void gd_add_source_if_running(const char *game_name)
 		add_game_source(gn, ce);
 }
 
+/* Public API — called from dialog after scene selection changes.
+ * - Removes the group from scenes that are no longer selected.
+ * - For newly-selected scenes, re-runs add_game_source for every
+ *   currently-tracked (running) game so the group appears immediately. */
+extern "C" void gd_sync_scenes(void)
+{
+	auto target_scenes = gd_config_get_scenes();
+	if (target_scenes.empty())
+		target_scenes.push_back(GD_DEFAULT_SCENE);
+
+	pthread_mutex_lock(&s_mutex);
+	char grp[256];
+	strncpy(grp, s_group, 255);
+	pthread_mutex_unlock(&s_mutex);
+
+	obs_source_t *grp_src = obs_get_source_by_name(grp);
+	if (!grp_src) return; /* no group yet — nothing to move */
+
+	/* --- Remove group from scenes not in the new list --- */
+	obs_source_t *sc_enum[64];
+	int sc_count = 0;
+	{
+		char **all = obs_frontend_get_scene_names();
+		if (all) {
+			for (int i = 0; all[i] && sc_count < 64; i++) {
+				bool wanted = false;
+				for (auto &s : target_scenes)
+					if (s == all[i]) { wanted = true; break; }
+				if (!wanted) {
+					obs_source_t *sc = obs_get_source_by_name(all[i]);
+					if (sc) sc_enum[sc_count++] = sc;
+				}
+			}
+			bfree(all);
+		}
+	}
+	for (int i = 0; i < sc_count; i++) {
+		obs_scene_t *scene = obs_scene_from_source(sc_enum[i]);
+		if (scene) {
+			obs_sceneitem_t *it = obs_scene_find_source(scene, grp);
+			if (it) obs_sceneitem_remove(it);
+		}
+		obs_source_release(sc_enum[i]);
+	}
+
+	obs_source_release(grp_src);
+
+	/* --- Re-run add_game_source for every running game so the group
+	 *     appears in newly-selected scenes immediately --- */
+	pthread_mutex_lock(&s_mutex);
+	std::vector<std::pair<std::string,std::string>> running;
+	for (int i = 0; i < s_seen_count; i++)
+		running.push_back({s_seen[i].display_name, s_seen[i].capture_exe});
+	pthread_mutex_unlock(&s_mutex);
+
+	for (auto &p : running)
+		add_game_source(p.first.c_str(), p.second.c_str());
+}
+
 static bool remove_nonplayer_source_cb(void *unused, obs_source_t *src)
 {
 	(void)unused;

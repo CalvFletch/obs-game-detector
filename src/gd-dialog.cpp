@@ -195,6 +195,7 @@ void GDSettingsDialog::saveData()
 		if (m_scenes->item(i)->checkState() == Qt::Checked)
 			scenes.push_back(m_scenes->item(i)->text().toStdString());
 	gd_config_set_scenes(scenes);
+	gd_sync_scenes();
 }
 
 void GDSettingsDialog::onAddDir()
