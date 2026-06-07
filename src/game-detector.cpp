@@ -120,27 +120,38 @@ static const char *SKIP_EXE[] = {
 	NULL,
 };
 
-static const char *SKIP_SUBSTR[] = {
+/* Applied only when the exe is NOT inside a known game install folder.
+ * Avoids false-positives for games whose exe contains these words
+ * (e.g. "crash" → Crash Bandicoot, "service" → Secret Service, etc.) */
+static const char *SKIP_SUBSTR_HEURISTIC[] = {
 	"crash", "handler", "service", "setup", "install", "uninstall",
 	"redist", "helper", "updater", "anticheat", "anti_cheat",
 	"overlay", "cefsubprocess", "shim", "monitor", "report", "sender",
 	NULL,
 };
 
-static bool should_skip_exe(const char *exe_lower)
+/* Returns true for well-known non-game processes — always filtered. */
+static bool should_skip_exe_hard(const char *exe_lower)
 {
 	for (int i = 0; SKIP_EXE[i]; i++)
 		if (strcmp(exe_lower, SKIP_EXE[i]) == 0)
 			return true;
+	return false;
+}
 
+/* Returns true for processes that look like launchers/services — only
+ * applied when the exe path is NOT inside a known game install folder,
+ * so real games whose names contain these substrings still get through. */
+static bool should_skip_exe_heuristic(const char *exe_lower)
+{
 	char base[MAX_PATH_LEN];
 	strncpy(base, exe_lower, sizeof(base) - 1);
 	base[sizeof(base) - 1] = '\0';
 	char *dot = strrchr(base, '.');
 	if (dot) *dot = '\0';
 
-	for (int i = 0; SKIP_SUBSTR[i]; i++)
-		if (strstr(base, SKIP_SUBSTR[i]))
+	for (int i = 0; SKIP_SUBSTR_HEURISTIC[i]; i++)
+		if (strstr(base, SKIP_SUBSTR_HEURISTIC[i]))
 			return true;
 
 	size_t blen = strlen(base);
@@ -888,12 +899,15 @@ static int scan_processes(proc_entry_t *out, int cap)
 /* Called for every process start — from boot scan and WMI callbacks */
 static void on_process_start_with_path(const char *exe, const char *full_path)
 {
-	if (should_skip_exe(exe)) return;
+	/* Hard filter: known non-game processes, always rejected */
+	if (should_skip_exe_hard(exe)) return;
 	if (!full_path || !full_path[0]) return;
 
 	char path_lower[MAX_PATH_LEN];
 	str_lower(path_lower, full_path, sizeof(path_lower));
 	if (!is_game_path(path_lower)) {
+		/* Not in a known game folder — apply heuristic substr filter too */
+		if (should_skip_exe_heuristic(exe)) return;
 		blog(LOG_DEBUG, "[obs-game-detector] SKIP (not game path) %s", exe);
 		return;
 	}
