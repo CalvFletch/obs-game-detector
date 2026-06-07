@@ -565,15 +565,6 @@ static void add_game_source(const char *game_name, const char *capture_exe)
 				     "[obs-game-detector] Added group '%s' \u2192 scene '%s'",
 				     group_name, scene_name.c_str());
 			}
-			/* Emit reorder so UI refreshes */
-			if (grp_src) {
-				calldata_t cd = {};
-				calldata_set_ptr(&cd, "scene", scene);
-				signal_handler_signal(
-					obs_source_get_signal_handler(sc_src),
-					"reorder", &cd);
-				calldata_free(&cd);
-			}
 		}
 		obs_source_release(sc_src);
 	}
@@ -622,6 +613,25 @@ static void add_game_source(const char *game_name, const char *capture_exe)
 		}
 		pthread_mutex_unlock(&s_mutex);
 		obs_source_release(grp_src);
+	}
+
+	/* Emit reorder on the group source *after* the item is inside it.
+	 * This is what makes the OBS scene panel expand and show the new item
+	 * without requiring a manual collapse/expand. */
+	if (placed) {
+		obs_source_t *grp_refresh = obs_get_source_by_name(group_name);
+		if (grp_refresh) {
+			obs_scene_t *grp_scene = obs_group_from_source(grp_refresh);
+			if (grp_scene) {
+				calldata_t cd = {};
+				calldata_set_ptr(&cd, "scene", grp_scene);
+				signal_handler_signal(
+					obs_source_get_signal_handler(grp_refresh),
+					"reorder", &cd);
+				calldata_free(&cd);
+			}
+			obs_source_release(grp_refresh);
+		}
 	}
 
 	if (!placed) {
