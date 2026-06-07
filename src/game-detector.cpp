@@ -759,15 +759,20 @@ extern "C" void gd_sync_scenes(void)
 	obs_source_release(grp_src);
 
 	/* --- Re-run add_game_source for every running game so the group
-	 *     appears in newly-selected scenes immediately --- */
-	pthread_mutex_lock(&s_mutex);
-	std::vector<std::pair<std::string,std::string>> running;
-	for (int i = 0; i < s_seen_count; i++)
-		running.push_back({s_seen[i].display_name, s_seen[i].capture_exe});
-	pthread_mutex_unlock(&s_mutex);
+	 *     appears in newly-selected scenes immediately.
+	 *     Only do this when there are actually target scenes — if the list
+	 *     is empty the user wants no scenes and add_game_source would
+	 *     fall back to GD_DEFAULT_SCENE and undo the removal above. --- */
+	if (!target_scenes.empty()) {
+		pthread_mutex_lock(&s_mutex);
+		std::vector<std::pair<std::string,std::string>> running;
+		for (int i = 0; i < s_seen_count; i++)
+			running.push_back({s_seen[i].display_name, s_seen[i].capture_exe});
+		pthread_mutex_unlock(&s_mutex);
 
-	for (auto &p : running)
-		add_game_source(p.first.c_str(), p.second.c_str());
+		for (auto &p : running)
+			add_game_source(p.first.c_str(), p.second.c_str());
+	}
 }
 
 static bool remove_nonplayer_source_cb(void *unused, obs_source_t *src)
