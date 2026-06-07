@@ -146,6 +146,18 @@ void GDSettingsDialog::loadData()
 		vlay->setAlignment(Qt::AlignCenter);
 		vlay->setContentsMargins(0, 0, 0, 0);
 		m_table->setCellWidget(i, 3, vcell);
+
+		/* Radio-button exclusivity: checking video for one game unchecks all others */
+		int row = i;
+		connect(vchk, &QCheckBox::toggled, this, [this, row](bool checked) {
+			if (!checked) return;
+			for (int j = 0; j < m_table->rowCount(); j++) {
+				if (j == row) continue;
+				auto *vc = m_table->cellWidget(j, 3);
+				auto *ch = vc ? vc->findChild<QCheckBox *>() : nullptr;
+				if (ch && ch->isChecked()) ch->setChecked(false);
+			}
+		});
 	}
 
 	/* Tab 3: scenes — enumerate all OBS scenes; check configured ones */

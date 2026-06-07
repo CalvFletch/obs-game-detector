@@ -76,6 +76,15 @@ static pthread_mutex_t s_mutex;
 static char s_group[256] = GD_DEFAULT_GROUP;
 static int  s_color      = GD_DEFAULT_COLOR;
 
+/* ── video color: #4ec1ff stored as ABGR ────────────────────────── */
+#define GD_VIDEO_COLOR_ABGR 0xFFFFC14EUL
+
+/* last game for which the tray notification was shown
+ * (read on Qt main thread when user clicks the notification) */
+static char s_notify_game[256]          = {};
+static char s_notify_exe[MAX_PATH_LEN]  = {};
+static bool s_tray_connected            = false;
+
 static game_entry_t s_map[MAP_CAP];
 static int          s_map_count    = 0;
 static uint64_t     s_last_rebuild = 0;
@@ -432,6 +441,8 @@ static void set_item_color(obs_sceneitem_t *item, int color)
 /* Forward declarations */
 static void add_game_source(const char *game_name, const char *capture_exe);
 static void add_game_video_source(const char *game_name, const char *capture_exe);
+static void remove_game_video_source(const char *game_name);
+static void set_active_video_game(const char *game_name, const char *capture_exe);
 static void show_obs_notification(const char *game_name);
 
 /* Callback data for the group scene "item_remove" signal */
@@ -751,6 +762,7 @@ static void add_game_video_source(const char *game_name, const char *capture_exe
 	snprintf(window_str, sizeof(window_str), "::%s", capture_exe);
 	obs_data_set_string(settings, "window", window_str);
 
+	bool is_new_source = (obs_get_source_by_name(vname) == nullptr);
 	obs_source_t *source = obs_get_source_by_name(vname);
 	if (!source)
 		source = obs_source_create("game_capture", vname, settings, NULL);
@@ -763,13 +775,41 @@ static void add_game_video_source(const char *game_name, const char *capture_exe
 		return;
 	}
 
+	/* Add Scaling/Aspect Ratio filter (lanczos, base canvas res) on new sources */
+	if (is_new_source) {
+		obs_source_t *ef = obs_source_get_filter_by_name(source, "Scaling/Aspect Ratio");
+		if (!ef) {
+			obs_data_t *fs = obs_data_create();
+			obs_data_set_string(fs, "sampling",   "lanczos");
+			obs_data_set_string(fs, "resolution", "Base (Canvas) Resolution");
+			obs_source_t *flt = obs_source_create("scale_filter",
+			                                      "Scaling/Aspect Ratio", fs, NULL);
+			if (flt) {
+				obs_source_filter_add(source, flt);
+				obs_source_release(flt);
+			}
+			obs_data_release(fs);
+		} else {
+			obs_source_release(ef);
+		}
+	}
+
 	/* Place in each target scene directly (not in the audio group) */
 	for (auto &scene_name : target_scenes) {
 		obs_source_t *sc_src = obs_get_source_by_name(scene_name.c_str());
 		if (!sc_src) continue;
 		obs_scene_t *scene = obs_scene_from_source(sc_src);
 		if (scene && !obs_scene_find_source(scene, vname)) {
-			obs_scene_add(scene, source);
+			obs_sceneitem_t *it = obs_scene_add(scene, source);
+			if (it) {
+				/* Custom colour #4ec1ff (ABGR 0xFFFFC14E) */
+				obs_data_t *ps = obs_sceneitem_get_private_settings(it);
+				if (ps) {
+					obs_data_set_int(ps, "color-preset", 0);
+					obs_data_set_int(ps, "color", (long long)GD_VIDEO_COLOR_ABGR);
+					obs_data_release(ps);
+				}
+			}
 			blog(LOG_INFO, "[obs-game-detector] Added video source '%s' \u2192 scene '%s'",
 			     vname, scene_name.c_str());
 		}
@@ -806,6 +846,23 @@ static void remove_game_video_source(const char *game_name)
 	obs_source_remove(src);
 	obs_source_release(src);
 	blog(LOG_INFO, "[obs-game-detector] Removed video source '%s'", vname);
+}
+
+/* Make game_name the sole active video capture:
+ * removes video sources for every other game, updates config, adds for this one.
+ * Must be called on the Qt main thread. */
+static void set_active_video_game(const char *game_name, const char *capture_exe)
+{
+	auto games = gd_config_get_games();
+	for (auto &g : games) {
+		bool want = (g.name == game_name);
+		if (g.capture_video && !want)
+			remove_game_video_source(g.name.c_str());
+		g.capture_video = want;
+	}
+	gd_config_set_games(games);
+	add_game_video_source(game_name, capture_exe);
+	blog(LOG_INFO, "[obs-game-detector] '%s' set as active video game", game_name);
 }
 
 /* Public API — called from dialog when user re-checks a game;
@@ -933,13 +990,44 @@ static void clear_all_game_sources(void)
 /* ── Desktop + OBS status-bar notification ───────────────────── */
 static void show_obs_notification(const char *game_name)
 {
+	/* Remember this game so the notification click can activate its video */
+	pthread_mutex_lock(&s_mutex);
+	strncpy(s_notify_game, game_name, sizeof(s_notify_game) - 1);
+	s_notify_exe[0] = '\0';
+	for (int i = 0; i < s_seen_count; i++) {
+		if (strcmp(s_seen[i].display_name, game_name) == 0) {
+			strncpy(s_notify_exe, s_seen[i].capture_exe,
+			        sizeof(s_notify_exe) - 1);
+			break;
+		}
+	}
+	pthread_mutex_unlock(&s_mutex);
+
 	QString title = "OBS Game Detector";
-	QString body  = QString("Now capturing audio for: %1")
+	QString body  = QString("Now capturing audio for: %1\nClick to set as active video capture")
 	                .arg(QString::fromUtf8(game_name));
 
 	/* Use the OBS system tray icon for the OS notification */
 	auto *tray = (QSystemTrayIcon *)obs_frontend_get_system_tray();
 	if (tray) {
+		/* Connect messageClicked once — activates video for the last-notified game */
+		if (!s_tray_connected) {
+			auto *mw = (QMainWindow *)obs_frontend_get_main_window();
+			QObject::connect(tray, &QSystemTrayIcon::messageClicked,
+			                 mw,   [mw]() {
+				char gn[256], ce[MAX_PATH_LEN];
+				strncpy(gn, s_notify_game, sizeof(gn) - 1);
+				strncpy(ce, s_notify_exe,  sizeof(ce) - 1);
+				gn[sizeof(gn) - 1] = ce[sizeof(ce) - 1] = '\0';
+				if (gn[0]) {
+					blog(LOG_INFO,
+					     "[obs-game-detector] Notification clicked "
+					     "\u2014 setting active video game: %s", gn);
+					set_active_video_game(gn, ce);
+				}
+			});
+			s_tray_connected = true;
+		}
 		QMetaObject::invokeMethod(tray, [tray, title, body]() {
 			tray->showMessage(title, body,
 			                  QSystemTrayIcon::Information, 6000);
