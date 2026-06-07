@@ -429,8 +429,9 @@ static void set_item_color(obs_sceneitem_t *item, int color)
 	}
 }
 
-/* Forward declaration */
+/* Forward declarations */
 static void add_game_source(const char *game_name, const char *capture_exe);
+static void show_obs_notification(const char *game_name);
 
 /* Callback data for the group scene "item_remove" signal */
 struct SourceReinstateCB {
@@ -651,6 +652,8 @@ static void add_game_source(const char *game_name, const char *capture_exe)
 			}
 			obs_source_release(grp_refresh);
 		}
+		/* Notify the user that audio capture started for this game */
+		show_obs_notification(game_name);
 	}
 
 	if (!placed) {
@@ -946,7 +949,6 @@ static void on_process_start_with_path(const char *exe, const char *full_path)
 
 	blog(LOG_INFO, "[obs-game-detector] START %s \u2192 %s", exe, game_name);
 	add_game_source(game_name, capture_exe);
-	show_obs_notification(game_name);
 }
 
 /* Called for every process stop — from WMI callbacks */
