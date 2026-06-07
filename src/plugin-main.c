@@ -1,34 +1,49 @@
 /*
-Plugin Name
-Copyright (C) <Year> <Developer> <Email Address>
-
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License along
-with this program. If not, see <https://www.gnu.org/licenses/>
-*/
+ * obs-game-detector
+ * Copyright (C) 2026 CIsaa
+ *
+ * Auto-detects running Steam / Epic / GOG games and creates
+ * wasapi_process_output_capture audio sources inside a configured
+ * OBS group, with a colour label.
+ *
+ * GPL-2.0 - see LICENSE
+ */
 
 #include <obs-module.h>
+#include <obs-frontend-api.h>
 #include <plugin-support.h>
+#include "game-detector.h"
 
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE(PLUGIN_NAME, "en-US")
 
+static void on_frontend_event(enum obs_frontend_event event, void *unused)
+{
+	(void)unused;
+	if (event == OBS_FRONTEND_EVENT_FINISHED_LOADING) {
+		obs_log(LOG_INFO, "[obs-game-detector] OBS finished loading, starting detector");
+		gd_start();
+	}
+}
+
+static void open_dialog_cb(void *unused)
+{
+	(void)unused;
+	gd_open_dialog();
+}
+
 bool obs_module_load(void)
 {
-	obs_log(LOG_INFO, "plugin loaded successfully (version %s)", PLUGIN_VERSION);
+	obs_log(LOG_INFO, "[obs-game-detector] module load");
+	obs_frontend_add_event_callback(on_frontend_event, NULL);
+	obs_frontend_add_tools_menu_item("Game Detector Settings",
+	                                 open_dialog_cb, NULL);
 	return true;
 }
 
 void obs_module_unload(void)
 {
-	obs_log(LOG_INFO, "plugin unloaded");
+	obs_frontend_remove_event_callback(on_frontend_event, NULL);
+	gd_stop();
+	obs_log(LOG_INFO, "[obs-game-detector] module unload");
 }

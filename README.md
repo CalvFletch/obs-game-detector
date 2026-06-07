@@ -1,59 +1,61 @@
-# OBS Plugin Template
+# obs-game-detector
 
-## Introduction
+OBS Studio plugin that auto-detects running Steam / Epic / GOG games and creates
+`wasapi_process_output_capture` audio sources inside a configured group with a
+colour label — no WebSocket, no external process, no Python.
 
-The plugin template is meant to be used as a starting point for OBS Studio plugin development. It includes:
+## How it works
 
-* Boilerplate plugin source code
-* A CMake project file
-* GitHub Actions workflows and repository actions
+- Polls running processes every 5 seconds (configurable)
+- Matches process paths against Steam / Epic / GOG install directories
+- Creates a `wasapi_process_output_capture` source for each detected game
+- Places the source inside the **"Gaming Audio"** group in the **"Gaming"** scene
+- Applies an orange colour label (configurable)
+- Removes sources when the game process exits
+- Handles BattlEye launchers (`_BE.exe` → actual game exe)
 
-## Supported Build Environments
+## Build (Windows)
 
-| Platform  | Tool   |
-|-----------|--------|
-| Windows   | Visual Studio 17 2022 |
-| macOS     | XCode 16.0 |
-| Windows, macOS  | CMake 3.30.5 |
-| Ubuntu 24.04 | CMake 3.28.3 |
-| Ubuntu 24.04 | `ninja-build` |
-| Ubuntu 24.04 | `pkg-config`
-| Ubuntu 24.04 | `build-essential` |
+### Prerequisites
 
-## Quick Start
+| Tool | Version |
+|------|---------|
+| Visual Studio | 2022 (Desktop C++ workload) |
+| CMake | >= 3.28 (already at `C:\Program Files\CMake`) |
+| Git | any |
 
-An absolute bare-bones [Quick Start Guide](https://github.com/obsproject/obs-plugintemplate/wiki/Quick-Start-Guide) is available in the wiki.
+### Steps
 
-## Documentation
+```powershell
+cd "C:\Users\CIsaa\Desktop\Development\obs-game-detector"
 
-All documentation can be found in the [Plugin Template Wiki](https://github.com/obsproject/obs-plugintemplate/wiki).
+# Configure — downloads OBS source + pre-built deps automatically
+cmake --preset windows-x64
 
-Suggested reading to get up and running:
+# Build
+cmake --build build_x64 --config RelWithDebInfo
 
-* [Getting started](https://github.com/obsproject/obs-plugintemplate/wiki/Getting-Started)
-* [Build system requirements](https://github.com/obsproject/obs-plugintemplate/wiki/Build-System-Requirements)
-* [Build system options](https://github.com/obsproject/obs-plugintemplate/wiki/CMake-Build-System-Options)
+# Install into OBS plugins folder
+cmake --install build_x64 --config RelWithDebInfo
+```
 
-## GitHub Actions & CI
+The `windows-x64` preset downloads the exact OBS source version listed in
+`buildspec.json` and matching pre-built deps. First configure takes a few
+minutes (~500 MB download).
 
-Default GitHub Actions workflows are available for the following repository actions:
+The `--install` step copies `obs-game-detector.dll` to:
 
-* `push`: Run for commits or tags pushed to `master` or `main` branches.
-* `pr-pull`: Run when a Pull Request has been pushed or synchronized.
-* `dispatch`: Run when triggered by the workflow dispatch in GitHub's user interface.
-* `build-project`: Builds the actual project and is triggered by other workflows.
-* `check-format`: Checks CMake and plugin source code formatting and is triggered by other workflows.
+    C:\Program Files\obs-studio\obs-plugins\64bit\
 
-The workflows make use of GitHub repository actions (contained in `.github/actions`) and build scripts (contained in `.github/scripts`) which are not needed for local development, but might need to be adjusted if additional/different steps are required to build the plugin.
+Restart OBS after installing.
 
-### Retrieving build artifacts
+## Configuration
 
-Successful builds on GitHub Actions will produce build artifacts that can be downloaded for testing. These artifacts are commonly simple archives and will not contain package installers or installation programs.
+OBS -> Tools -> Game Detector Settings
 
-### Building a Release
-
-To create a release, an appropriately named tag needs to be pushed to the `main`/`master` branch using semantic versioning (e.g., `12.3.4`, `23.4.5-beta2`). A draft release will be created on the associated repository with generated installer packages or installation programs attached as release artifacts.
-
-## Signing and Notarizing on macOS
-
-Basic concepts of codesigning and notarization on macOS are explained in the correspodning [Wiki article](https://github.com/obsproject/obs-plugintemplate/wiki/Codesigning-On-macOS) which has a specific section for the [GitHub Actions setup](https://github.com/obsproject/obs-plugintemplate/wiki/Codesigning-On-macOS#setting-up-code-signing-for-github-actions).
+| Setting | Default |
+|---------|---------|
+| Scene Name | Gaming |
+| Group Name | Gaming Audio |
+| Poll interval (sec) | 5 |
+| Source Colour | Orange |
