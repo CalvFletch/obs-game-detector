@@ -463,6 +463,12 @@ static void on_group_item_removed(void *data, calldata_t *cd)
 
 	if (!still_tracked) return;
 
+	/* Don't reinstate if the user has removed all target scenes.
+	 * saveData() writes the new scene list before calling gd_sync_scenes,
+	 * so by the time this callback fires during group teardown the list is
+	 * already empty — checking here prevents the group from re-appearing. */
+	if (gd_config_get_scenes().empty()) return;
+
 	blog(LOG_INFO,
 	     "[obs-game-detector] Item for '%s' removed from group \u2014 reinstating",
 	     cb->game_name);
