@@ -463,6 +463,11 @@ static void on_group_item_removed(void *data, calldata_t *cd)
 
 	if (!still_tracked) return;
 
+	/* Don't reinstate a game the user has disabled. saveData() calls
+	 * gd_config_set_games() synchronously before the queued lambda runs,
+	 * so by the time we execute the game is already marked disabled. */
+	if (gd_config_is_disabled(cb->game_name)) return;
+
 	/* Don't reinstate if the user has removed all target scenes.
 	 * saveData() writes the new scene list before calling gd_sync_scenes,
 	 * so by the time this callback fires during group teardown the list is
@@ -485,6 +490,14 @@ static void on_group_item_removed(void *data, calldata_t *cd)
 
 static void add_game_source(const char *game_name, const char *capture_exe)
 {
+	/* Never add a source for a game the user has disabled */
+	if (gd_config_is_disabled(game_name)) {
+		blog(LOG_INFO,
+		     "[obs-game-detector] '%s' is disabled — skipping add",
+		     game_name);
+		return;
+	}
+
 	/* If this source is already in the group, nothing to do */
 	{
 		pthread_mutex_lock(&s_mutex);
