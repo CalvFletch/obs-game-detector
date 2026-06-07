@@ -51,15 +51,14 @@ GDSettingsDialog::GDSettingsDialog(QWidget *parent)
 	games_lay->addWidget(hint);
 
 	m_table = new QTableWidget(games_page);
-	m_table->setColumnCount(4);
-	m_table->setHorizontalHeaderLabels({"Game", "Last Seen", "Capture Audio", "Capture Video"});
+	m_table->setColumnCount(3);
+	m_table->setHorizontalHeaderLabels({"Game", "Last Seen", "Capture Audio"});
 	m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
 	m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
 	m_table->setAlternatingRowColors(true);
 	m_table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
 	m_table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
 	m_table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
-	m_table->horizontalHeader()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
 	m_table->verticalHeader()->hide();
 	games_lay->addWidget(m_table);
 
@@ -137,27 +136,6 @@ void GDSettingsDialog::loadData()
 		lay->setAlignment(Qt::AlignCenter);
 		lay->setContentsMargins(0, 0, 0, 0);
 		m_table->setCellWidget(i, 2, cell);
-
-		auto *vcell = new QWidget(this);
-		auto *vlay  = new QHBoxLayout(vcell);
-		auto *vchk  = new QCheckBox(vcell);
-		vchk->setChecked(games[i].capture_video);
-		vlay->addWidget(vchk);
-		vlay->setAlignment(Qt::AlignCenter);
-		vlay->setContentsMargins(0, 0, 0, 0);
-		m_table->setCellWidget(i, 3, vcell);
-
-		/* Radio-button exclusivity: checking video for one game unchecks all others */
-		int row = i;
-		connect(vchk, &QCheckBox::toggled, this, [this, row](bool checked) {
-			if (!checked) return;
-			for (int j = 0; j < m_table->rowCount(); j++) {
-				if (j == row) continue;
-				auto *vc = m_table->cellWidget(j, 3);
-				auto *ch = vc ? vc->findChild<QCheckBox *>() : nullptr;
-				if (ch && ch->isChecked()) ch->setChecked(false);
-			}
-		});
 	}
 
 	/* Tab 3: scenes — enumerate all OBS scenes; check configured ones */
@@ -195,9 +173,6 @@ void GDSettingsDialog::saveData()
 		auto *cell  = m_table->cellWidget(i, 2);
 		auto *chk   = cell ? cell->findChild<QCheckBox *>() : nullptr;
 		r.enabled   = chk ? chk->isChecked() : true;
-		auto *vcell = m_table->cellWidget(i, 3);
-		auto *vchk  = vcell ? vcell->findChild<QCheckBox *>() : nullptr;
-		r.capture_video = vchk ? vchk->isChecked() : false;
 		games.push_back(r);
 	}
 	/* Remove sources for disabled games; restore if re-enabled and running */
@@ -206,13 +181,6 @@ void GDSettingsDialog::saveData()
 			gd_remove_source(r.name.c_str());
 		else
 			gd_add_source_if_running(r.name.c_str());
-	}
-	/* Video sources — remove if unchecked, add if checked and game is running */
-	for (auto &r : games) {
-		if (!r.capture_video)
-			gd_remove_video_source(r.name.c_str());
-		else
-			gd_add_video_source_if_running(r.name.c_str());
 	}
 
 	gd_config_set_games(games);
