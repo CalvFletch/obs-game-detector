@@ -717,11 +717,40 @@ static void clear_all_game_sources(void)
 	obs_enum_sources(remove_nonplayer_source_cb, NULL);
 }
 
-/* ── OBS status-bar notification ────────────────────────────── */
+/* ── Desktop + OBS status-bar notification ───────────────────── */
 static void show_obs_notification(const char *game_name)
 {
-	/* Write a temp PS1 and fire it hidden — avoids all quoting issues */
-	/* Must run on Qt main thread; WMI callbacks are on a worker thread */
+	/* Windows toast via a temp PS1 fired hidden */
+	char tmp[MAX_PATH];
+	GetTempPathA(MAX_PATH, tmp);
+	std::string ps_path = std::string(tmp) + "obs-gd-notify.ps1";
+
+	FILE *f = fopen(ps_path.c_str(), "w");
+	if (f) {
+		fprintf(f,
+			"[Windows.UI.Notifications.ToastNotificationManager,"
+			"Windows.UI.Notifications,ContentType=WindowsRuntime]|Out-Null\n"
+			"[Windows.Data.Xml.Dom.XmlDocument,"
+			"Windows.Data.Xml.Dom,ContentType=WindowsRuntime]|Out-Null\n"
+			"$x=[Windows.UI.Notifications.ToastNotificationManager]::"
+			"GetTemplateContent("
+			"[Windows.UI.Notifications.ToastTemplateType]::ToastText02)\n"
+			"$x.GetElementsByTagName('text')[0].AppendChild("
+			"$x.CreateTextNode('OBS Game Detector'))|Out-Null\n"
+			"$x.GetElementsByTagName('text')[1].AppendChild("
+			"$x.CreateTextNode('Now capturing: %s'))|Out-Null\n"
+			"[Windows.UI.Notifications.ToastNotificationManager]::"
+			"CreateToastNotifier('OBS Game Detector').Show("
+			"[Windows.UI.Notifications.ToastNotification]::new($x))\n",
+			game_name);
+		fclose(f);
+		std::string args = "-NonInteractive -WindowStyle Hidden -File \""
+			+ ps_path + "\"";
+		ShellExecuteA(NULL, "open", "powershell.exe",
+			args.c_str(), NULL, SW_HIDE);
+	}
+
+	/* OBS status bar */
 	QObject *mw = (QObject *)obs_frontend_get_main_window();
 	if (!mw) return;
 	QString msg = QString("Game Detector: now capturing audio for \"%1\"")
