@@ -600,6 +600,17 @@ static bool is_gd_wasapi_capture(obs_source_t *src)
 	return sid && strcmp(sid, "wasapi_process_output_capture") == 0;
 }
 
+/* Callback for obs_scene_enum_items: checks if any item uses the marker source. */
+static bool has_gd_marker_cb(obs_scene_t *, obs_sceneitem_t *item, void *data)
+{
+	obs_source_t *src = obs_sceneitem_get_source(item);
+	if (src && strcmp(obs_source_get_unversioned_id(src), "gd_auto_game_audio") == 0) {
+		*static_cast<bool *>(data) = true;
+		return false;
+	}
+	return true;
+}
+
 static void get_target_scenes(const GD_ConfigSnap *cfg, char scenes[][GD_MAX_SCENE_LEN], int *count)
 {
 	*count = 0;
@@ -608,6 +619,39 @@ static void get_target_scenes(const GD_ConfigSnap *cfg, char scenes[][GD_MAX_SCE
 		for (int i = 0; i < cfg->scene_count; i++)
 			gd_strlcpy(scenes[i], cfg->scenes[i], GD_MAX_SCENE_LEN);
 	}
+
+	/* Also include any scene that contains an "Auto Game Audio" marker source. */
+	char **scene_names = obs_frontend_get_scene_names();
+	if (!scene_names)
+		return;
+
+	for (int i = 0; scene_names[i] && *count < GD_MAX_SCENES; i++) {
+		/* Skip if already in the list. */
+		bool already = false;
+		for (int j = 0; j < *count; j++) {
+			if (strcmp(scenes[j], scene_names[i]) == 0) {
+				already = true;
+				break;
+			}
+		}
+		if (already)
+			continue;
+
+		obs_source_t *sc_src = obs_get_source_by_name(scene_names[i]);
+		if (!sc_src)
+			continue;
+
+		obs_scene_t *sc = obs_scene_from_source(sc_src);
+		bool found = false;
+		if (sc)
+			obs_scene_enum_items(sc, has_gd_marker_cb, &found);
+		obs_source_release(sc_src);
+
+		if (found)
+			gd_strlcpy(scenes[(*count)++], scene_names[i], GD_MAX_SCENE_LEN);
+	}
+
+	bfree(scene_names);
 }
 
 static void show_obs_notification(const char *game_name);
