@@ -4,7 +4,8 @@
 
 #include <stdio.h>
 
-char *gd_file_read_alloc(const char *path, long max_sz) {
+char *gd_file_read_alloc(const char *path, long max_sz)
+{
 	FILE *f;
 	if (fopen_s(&f, path, "rb") != 0 || !f)
 		return NULL;

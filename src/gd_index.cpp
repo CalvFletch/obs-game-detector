@@ -16,7 +16,8 @@
 #include <time.h>
 
 // path / string helpers
-void gd_strlcpy(char *dst, const char *src, size_t cap) {
+void gd_strlcpy(char *dst, const char *src, size_t cap)
+{
 	if (!dst || cap == 0)
 		return;
 	if (!src) {
@@ -27,7 +28,8 @@ void gd_strlcpy(char *dst, const char *src, size_t cap) {
 	dst[cap - 1] = '\0';
 }
 
-void gd_strlower(char *dst, const char *src, size_t cap) {
+void gd_strlower(char *dst, const char *src, size_t cap)
+{
 	size_t i = 0;
 	if (!dst || cap == 0)
 		return;
@@ -40,7 +42,8 @@ void gd_strlower(char *dst, const char *src, size_t cap) {
 	dst[i] = '\0';
 }
 
-static void path_rstrip_bs(char *path) {
+static void path_rstrip_bs(char *path)
+{
 	if (!path)
 		return;
 	size_t n = strlen(path);
@@ -48,7 +51,8 @@ static void path_rstrip_bs(char *path) {
 		path[--n] = '\0';
 }
 
-static void path_normalize(char *path) {
+static void path_normalize(char *path)
+{
 	if (!path)
 		return;
 
@@ -70,14 +74,16 @@ static void path_normalize(char *path) {
 	path_rstrip_bs(path);
 }
 
-static void path_to_install_dir(char *path) {
+static void path_to_install_dir(char *path)
+{
 	if (!path || !path[0])
 		return;
 	gd_strlower(path, path, GD_MAX_PATH);
 	path_normalize(path);
 }
 
-static void path_to_watch_dir(char *path) {
+static void path_to_watch_dir(char *path)
+{
 	if (!path || !path[0])
 		return;
 
@@ -85,12 +91,8 @@ static void path_to_watch_dir(char *path) {
 	path_normalize(path);
 
 	static const char *roots[] = {
-		"\\steamapps\\common",
-		"\\epic games",
-		"\\ubisoft game launcher\\games",
-		"\\ea games",
-		"\\origin games",
-		NULL,
+		"\\steamapps\\common", "\\epic games",   "\\ubisoft game launcher\\games",
+		"\\ea games",          "\\origin games", NULL,
 	};
 
 	for (int i = 0; roots[i]; i++) {
@@ -105,29 +107,31 @@ static void path_to_watch_dir(char *path) {
 	}
 }
 
-static GD_GameId game_id_hash(const char *normalized_path) {
+static GD_GameId game_id_hash(const char *normalized_path)
+{
 	const uint64_t FNV_OFFSET = 14695981039346656037ULL;
-	const uint64_t FNV_PRIME  = 1099511628211ULL;
-	uint64_t       h          = FNV_OFFSET;
+	const uint64_t FNV_PRIME = 1099511628211ULL;
+	uint64_t h = FNV_OFFSET;
 
 	if (!normalized_path)
 		return 0;
 
-	for (const unsigned char *p = (const unsigned char *)normalized_path; *p;
-	     p++) {
+	for (const unsigned char *p = (const unsigned char *)normalized_path; *p; p++) {
 		h ^= (uint64_t)*p;
 		h *= FNV_PRIME;
 	}
 	return h;
 }
 
-void gd_game_id_to_hex(GD_GameId id, char *out, size_t cap) {
+void gd_game_id_to_hex(GD_GameId id, char *out, size_t cap)
+{
 	if (!out || cap == 0)
 		return;
 	snprintf(out, cap, "%016llx", (unsigned long long)id);
 }
 
-bool gd_game_id_from_hex(const char *hex, GD_GameId *out) {
+bool gd_game_id_from_hex(const char *hex, GD_GameId *out)
+{
 	if (!hex || !out)
 		return false;
 	unsigned long long v = 0;
@@ -137,7 +141,8 @@ bool gd_game_id_from_hex(const char *hex, GD_GameId *out) {
 	return true;
 }
 
-static bool path_config_file(char *out, size_t cap, const char *name) {
+static bool path_config_file(char *out, size_t cap, const char *name)
+{
 	if (!out || cap == 0 || !name || !name[0])
 		return false;
 
@@ -150,16 +155,16 @@ static bool path_config_file(char *out, size_t cap, const char *name) {
 	return out[0] != '\0';
 }
 
-static bool dir_list_contains(char dirs[][GD_MAX_PATH], int count,
-                              const char *path) {
+static bool dir_list_contains(char dirs[][GD_MAX_PATH], int count, const char *path)
+{
 	for (int i = 0; i < count; i++)
 		if (_stricmp(dirs[i], path) == 0)
 			return true;
 	return false;
 }
 
-bool gd_dir_add_unique(char dirs[][GD_MAX_PATH], int *count, int cap,
-                       const char *path) {
+bool gd_dir_add_unique(char dirs[][GD_MAX_PATH], int *count, int cap, const char *path)
+{
 	if (!dirs || !count || !path || !path[0] || *count >= cap)
 		return false;
 
@@ -176,15 +181,18 @@ bool gd_dir_add_unique(char dirs[][GD_MAX_PATH], int *count, int cap,
 	return true;
 }
 
-uint64_t gd_wall_ms(void) {
+uint64_t gd_wall_ms(void)
+{
 	return (uint64_t)time(NULL) * 1000ULL;
 }
 
-bool gd_install_index_cache_path(char *out, size_t cap) {
+bool gd_install_index_cache_path(char *out, size_t cap)
+{
 	return path_config_file(out, cap, "install_index.json");
 }
 
-uint32_t gd_tracks_sanitize_mask(uint32_t mask, uint32_t allowed) {
+uint32_t gd_tracks_sanitize_mask(uint32_t mask, uint32_t allowed)
+{
 	if (!allowed)
 		return 1;
 	mask &= allowed;
@@ -197,11 +205,12 @@ uint32_t gd_tracks_sanitize_mask(uint32_t mask, uint32_t allowed) {
 	return 1;
 }
 
-void gd_recording_tracks(GD_RecTracks *out) {
+void gd_recording_tracks(GD_RecTracks *out)
+{
 	memset(out, 0, sizeof(*out));
 
 	config_t *cfg = obs_frontend_get_profile_config();
-	int       rec = 1;
+	int rec = 1;
 
 	if (cfg) {
 		const char *mode = config_get_string(cfg, "Output", "Mode");
@@ -221,12 +230,13 @@ void gd_recording_tracks(GD_RecTracks *out) {
 
 	if (out->track_count == 0) {
 		out->track_nums[0] = 1;
-		out->track_count   = 1;
-		out->mask          = 1;
+		out->track_count = 1;
+		out->mask = 1;
 	}
 }
 
-static bool json_unescape_quoted(const char **pp, char *out, size_t cap) {
+static bool json_unescape_quoted(const char **pp, char *out, size_t cap)
+{
 	const char *p = *pp;
 	if (*p != '"')
 		return false;
@@ -274,8 +284,8 @@ static bool json_unescape_quoted(const char **pp, char *out, size_t cap) {
 	return i > 0;
 }
 
-static bool json_get_str(const char *json, const char *key, char *out,
-                         size_t cap) {
+static bool json_get_str(const char *json, const char *key, char *out, size_t cap)
+{
 	char search[128];
 	snprintf(search, sizeof(search), "\"%s\"", key);
 	const char *p = strstr(json, search);
@@ -288,7 +298,8 @@ static bool json_get_str(const char *json, const char *key, char *out,
 }
 
 // install index
-uint64_t gd_install_index_normalize_built_ms(uint64_t raw) {
+uint64_t gd_install_index_normalize_built_ms(uint64_t raw)
+{
 	uint64_t now = gd_wall_ms();
 	if (raw < 1577836800000ULL)
 		return now;
@@ -297,12 +308,14 @@ uint64_t gd_install_index_normalize_built_ms(uint64_t raw) {
 	return raw;
 }
 
-static bool dir_exists(const char *path) {
+static bool dir_exists(const char *path)
+{
 	DWORD a = GetFileAttributesA(path);
 	return a != INVALID_FILE_ATTRIBUTES && (a & FILE_ATTRIBUTE_DIRECTORY);
 }
 
-static void add_entry(GD_InstallIndex *idx, const char *dir, const char *name) {
+static void add_entry(GD_InstallIndex *idx, const char *dir, const char *name)
+{
 	if (idx->entry_count >= GD_MAP_CAP || !dir || !dir[0] || !name || !name[0])
 		return;
 
@@ -320,7 +333,8 @@ static void add_entry(GD_InstallIndex *idx, const char *dir, const char *name) {
 	gd_strlcpy(e->display_name, name, sizeof(e->display_name));
 }
 
-static void add_lookup(GD_InstallIndex *idx, const char *path) {
+static void add_lookup(GD_InstallIndex *idx, const char *path)
+{
 	if (idx->lookup_dir_count >= GD_MAX_LOOKUP_DIRS || !path || !path[0])
 		return;
 
@@ -338,11 +352,10 @@ static void add_lookup(GD_InstallIndex *idx, const char *path) {
 
 #define GD_MANIFEST_MAX_SZ (8 * 1024 * 1024)
 
-typedef bool (*gd_manifest_parse_fn)(const char *buf, char *dir, size_t dcap,
-                                     char *name, size_t ncap);
+typedef bool (*gd_manifest_parse_fn)(const char *buf, char *dir, size_t dcap, char *name, size_t ncap);
 
-static void scan_manifest_dir(GD_InstallIndex *idx, const char *dir,
-                              const char *file_glob, gd_manifest_parse_fn parse) {
+static void scan_manifest_dir(GD_InstallIndex *idx, const char *dir, const char *file_glob, gd_manifest_parse_fn parse)
+{
 	char glob_path[GD_MAX_PATH];
 	snprintf(glob_path, sizeof(glob_path), "%s\\%s", dir, file_glob);
 
@@ -368,23 +381,22 @@ static void scan_manifest_dir(GD_InstallIndex *idx, const char *dir,
 	FindClose(h);
 }
 
-static bool parse_steam_manifest(const char *buf, char *dir, size_t dcap,
-                                 char *name, size_t ncap) {
+static bool parse_steam_manifest(const char *buf, char *dir, size_t dcap, char *name, size_t ncap)
+{
 	char idir[GD_MAX_PATH];
-	if (!json_get_str(buf, "name", name, ncap) ||
-	    !json_get_str(buf, "installdir", idir, sizeof(idir)))
+	if (!json_get_str(buf, "name", name, ncap) || !json_get_str(buf, "installdir", idir, sizeof(idir)))
 		return false;
 	snprintf(dir, dcap, "%s\\common\\%s", dir, idir);
 	return true;
 }
 
-static bool parse_epic_manifest(const char *buf, char *dir, size_t dcap,
-                                char *name, size_t ncap) {
-	return json_get_str(buf, "DisplayName", name, ncap) &&
-	       json_get_str(buf, "InstallLocation", dir, dcap);
+static bool parse_epic_manifest(const char *buf, char *dir, size_t dcap, char *name, size_t ncap)
+{
+	return json_get_str(buf, "DisplayName", name, ncap) && json_get_str(buf, "InstallLocation", dir, dcap);
 }
 
-static void fprint_json_string(FILE *f, const char *s) {
+static void fprint_json_string(FILE *f, const char *s)
+{
 	fputc('"', f);
 	if (!s) {
 		fputc('"', f);
@@ -414,13 +426,15 @@ static void fprint_json_string(FILE *f, const char *s) {
 	fputc('"', f);
 }
 
-static bool entry_path_valid(const char *path) {
+static bool entry_path_valid(const char *path)
+{
 	if (!path || !path[0])
 		return false;
 	return strchr(path, '\\') != NULL;
 }
 
-static bool index_cache_valid(const GD_InstallIndex *idx) {
+static bool index_cache_valid(const GD_InstallIndex *idx)
+{
 	if (idx->entry_count == 0)
 		return false;
 	for (int i = 0; i < idx->entry_count; i++) {
@@ -430,20 +444,20 @@ static bool index_cache_valid(const GD_InstallIndex *idx) {
 	return true;
 }
 
-static void scan_steam_library(GD_InstallIndex *idx, const char *library_path) {
-	scan_manifest_dir(idx, library_path, "appmanifest_*.acf",
-	                  parse_steam_manifest);
+static void scan_steam_library(GD_InstallIndex *idx, const char *library_path)
+{
+	scan_manifest_dir(idx, library_path, "appmanifest_*.acf", parse_steam_manifest);
 
 	char common[GD_MAX_PATH];
 	snprintf(common, sizeof(common), "%s\\common", library_path);
 	add_lookup(idx, common);
 }
 
-static void scan_steam(GD_InstallIndex *idx) {
+static void scan_steam(GD_InstallIndex *idx)
+{
 	HKEY hk;
 	char steam_path[GD_MAX_PATH] = {0};
-	if (RegOpenKeyExA(HKEY_CURRENT_USER, "SOFTWARE\\Valve\\Steam", 0, KEY_READ,
-	                  &hk) == ERROR_SUCCESS) {
+	if (RegOpenKeyExA(HKEY_CURRENT_USER, "SOFTWARE\\Valve\\Steam", 0, KEY_READ, &hk) == ERROR_SUCCESS) {
 		DWORD sz = sizeof(steam_path);
 		RegQueryValueExA(hk, "SteamPath", NULL, NULL, (LPBYTE)steam_path, &sz);
 		RegCloseKey(hk);
@@ -458,8 +472,7 @@ static void scan_steam(GD_InstallIndex *idx) {
 	scan_steam_library(idx, lib0);
 
 	char vdf[GD_MAX_PATH];
-	snprintf(vdf, sizeof(vdf), "%s\\steamapps\\libraryfolders.vdf",
-	         steam_path);
+	snprintf(vdf, sizeof(vdf), "%s\\steamapps\\libraryfolders.vdf", steam_path);
 	char *buf = gd_file_read_alloc(vdf, GD_MANIFEST_MAX_SZ);
 	if (buf) {
 		const char *p = buf;
@@ -477,12 +490,12 @@ static void scan_steam(GD_InstallIndex *idx) {
 	}
 }
 
-static void scan_epic(GD_InstallIndex *idx) {
-	const char *epic_dir =
-		"C:\\ProgramData\\Epic\\EpicGamesLauncher\\Data\\Manifests";
+static void scan_epic(GD_InstallIndex *idx)
+{
+	const char *epic_dir = "C:\\ProgramData\\Epic\\EpicGamesLauncher\\Data\\Manifests";
 	scan_manifest_dir(idx, epic_dir, "*.item", parse_epic_manifest);
 
-	const char *pf   = getenv("ProgramFiles");
+	const char *pf = getenv("ProgramFiles");
 	const char *pf86 = getenv("ProgramFiles(x86)");
 	char epic[GD_MAX_PATH];
 	if (pf) {
@@ -497,16 +510,16 @@ static void scan_epic(GD_InstallIndex *idx) {
 	}
 }
 
-static void scan_gog(GD_InstallIndex *idx) {
+static void scan_gog(GD_InstallIndex *idx)
+{
 	HKEY hgog;
-	if (RegOpenKeyExA(HKEY_LOCAL_MACHINE, "SOFTWARE\\WOW6432Node\\GOG.com\\Games",
-	                  0, KEY_READ, &hgog) != ERROR_SUCCESS)
+	if (RegOpenKeyExA(HKEY_LOCAL_MACHINE, "SOFTWARE\\WOW6432Node\\GOG.com\\Games", 0, KEY_READ, &hgog) !=
+	    ERROR_SUCCESS)
 		return;
 
 	char sub[256];
 	DWORD gidx = 0, sublen = sizeof(sub);
-	while (RegEnumKeyExA(hgog, gidx++, sub, &sublen, NULL, NULL, NULL,
-	                     NULL) == ERROR_SUCCESS) {
+	while (RegEnumKeyExA(hgog, gidx++, sub, &sublen, NULL, NULL, NULL, NULL) == ERROR_SUCCESS) {
 		sublen = sizeof(sub);
 		HKEY hg;
 		if (RegOpenKeyExA(hgog, sub, 0, KEY_READ, &hg) == ERROR_SUCCESS) {
@@ -522,33 +535,30 @@ static void scan_gog(GD_InstallIndex *idx) {
 	RegCloseKey(hgog);
 }
 
-static void scan_ubisoft(GD_InstallIndex *idx) {
+static void scan_ubisoft(GD_InstallIndex *idx)
+{
 	const char *pf86 = getenv("ProgramFiles(x86)");
-	const char *pf   = getenv("ProgramFiles");
+	const char *pf = getenv("ProgramFiles");
 	char buf[GD_MAX_PATH];
 	if (pf86) {
-		snprintf(buf, sizeof(buf),
-		         "%s\\Ubisoft\\Ubisoft Game Launcher\\games", pf86);
+		snprintf(buf, sizeof(buf), "%s\\Ubisoft\\Ubisoft Game Launcher\\games", pf86);
 		if (dir_exists(buf))
 			add_lookup(idx, buf);
 	}
 	if (pf) {
-		snprintf(buf, sizeof(buf),
-		         "%s\\Ubisoft\\Ubisoft Game Launcher\\games", pf);
+		snprintf(buf, sizeof(buf), "%s\\Ubisoft\\Ubisoft Game Launcher\\games", pf);
 		if (dir_exists(buf))
 			add_lookup(idx, buf);
 	}
 
 	HKEY hub;
-	if (RegOpenKeyExA(HKEY_LOCAL_MACHINE,
-	                  "SOFTWARE\\WOW6432Node\\Ubisoft\\Launcher\\Installs", 0,
-	                  KEY_READ, &hub) != ERROR_SUCCESS)
+	if (RegOpenKeyExA(HKEY_LOCAL_MACHINE, "SOFTWARE\\WOW6432Node\\Ubisoft\\Launcher\\Installs", 0, KEY_READ,
+			  &hub) != ERROR_SUCCESS)
 		return;
 
 	char sub[256];
 	DWORD uidx = 0, sublen = sizeof(sub);
-	while (RegEnumKeyExA(hub, uidx++, sub, &sublen, NULL, NULL, NULL,
-	                     NULL) == ERROR_SUCCESS) {
+	while (RegEnumKeyExA(hub, uidx++, sub, &sublen, NULL, NULL, NULL, NULL) == ERROR_SUCCESS) {
 		sublen = sizeof(sub);
 		HKEY hg;
 		if (RegOpenKeyExA(hub, sub, 0, KEY_READ, &hg) == ERROR_SUCCESS) {
@@ -568,8 +578,9 @@ static void scan_ubisoft(GD_InstallIndex *idx) {
 	RegCloseKey(hub);
 }
 
-static void scan_ea_origin(GD_InstallIndex *idx) {
-	const char *pf   = getenv("ProgramFiles");
+static void scan_ea_origin(GD_InstallIndex *idx)
+{
+	const char *pf = getenv("ProgramFiles");
 	const char *pf86 = getenv("ProgramFiles(x86)");
 	const char *names[] = {"EA Games", "Origin Games", NULL};
 	char buf[GD_MAX_PATH];
@@ -587,7 +598,8 @@ static void scan_ea_origin(GD_InstallIndex *idx) {
 	}
 }
 
-void gd_install_index_build(GD_InstallIndex *idx) {
+void gd_install_index_build(GD_InstallIndex *idx)
+{
 	memset(idx, 0, sizeof(*idx));
 
 	scan_steam(idx);
@@ -597,14 +609,14 @@ void gd_install_index_build(GD_InstallIndex *idx) {
 	scan_ea_origin(idx);
 
 	if (idx->lookup_dir_count == 0)
-		blog(LOG_ERROR,
-		     "[obs-game-detector] install index build produced no lookup dirs");
+		blog(LOG_ERROR, "[obs-game-detector] install index build produced no lookup dirs");
 
 	gd_lookup_sanitize_index_dirs(idx);
 	idx->built_ms = gd_wall_ms();
 }
 
-void gd_install_index_save(const GD_InstallIndex *idx, const char *cache_path) {
+void gd_install_index_save(const GD_InstallIndex *idx, const char *cache_path)
+{
 	if (!idx || !cache_path)
 		return;
 
@@ -626,8 +638,7 @@ void gd_install_index_save(const GD_InstallIndex *idx, const char *cache_path) {
 	if (fopen_s(&f, tmp, "wb") != 0 || !f)
 		return;
 
-	fprintf(f, "{\n  \"built_ms\": %llu,\n  \"entries\": [\n",
-	        (unsigned long long)idx->built_ms);
+	fprintf(f, "{\n  \"built_ms\": %llu,\n  \"entries\": [\n", (unsigned long long)idx->built_ms);
 	for (int i = 0; i < idx->entry_count; i++) {
 		char idhex[32];
 		gd_game_id_to_hex(idx->entries[i].id, idhex, sizeof(idhex));
@@ -651,7 +662,8 @@ void gd_install_index_save(const GD_InstallIndex *idx, const char *cache_path) {
 	MoveFileExA(tmp, cache_path, MOVEFILE_REPLACE_EXISTING);
 }
 
-static bool load_from_json(GD_InstallIndex *idx, const char *path) {
+static bool load_from_json(GD_InstallIndex *idx, const char *path)
+{
 	char *json = gd_file_read_alloc(path, GD_MANIFEST_MAX_SZ);
 	if (!json)
 		return false;
@@ -675,7 +687,7 @@ static bool load_from_json(GD_InstallIndex *idx, const char *path) {
 			if (!p)
 				break;
 			char idir[GD_MAX_PATH] = {0};
-			char dname[256]       = {0};
+			char dname[256] = {0};
 			json_get_str(p, "install_dir", idir, sizeof(idir));
 			const char *dn = strstr(p, "\"display_name\"");
 			if (dn)
@@ -715,23 +727,21 @@ static bool load_from_json(GD_InstallIndex *idx, const char *path) {
 	return idx->entry_count > 0 || idx->lookup_dir_count > 0;
 }
 
-bool gd_install_index_load_or_build(GD_InstallIndex *idx, const char *cache_path) {
-	if (cache_path && load_from_json(idx, cache_path) &&
-	    index_cache_valid(idx)) {
+bool gd_install_index_load_or_build(GD_InstallIndex *idx, const char *cache_path)
+{
+	if (cache_path && load_from_json(idx, cache_path) && index_cache_valid(idx)) {
 		if (gd_lookup_sanitize_index_dirs(idx)) {
 			gd_install_index_save(idx, cache_path);
 			blog(LOG_INFO,
 			     "[obs-game-detector] install index lookup dirs migrated to library roots: %d dirs",
 			     idx->lookup_dir_count);
 		}
-		blog(LOG_INFO,
-		     "[obs-game-detector] install index loaded from cache: %d entries, %d lookup dirs",
+		blog(LOG_INFO, "[obs-game-detector] install index loaded from cache: %d entries, %d lookup dirs",
 		     idx->entry_count, idx->lookup_dir_count);
 		return true;
 	}
 
-	blog(LOG_INFO,
-	     "[obs-game-detector] install index cache invalid: rebuilding");
+	blog(LOG_INFO, "[obs-game-detector] install index cache invalid: rebuilding");
 	gd_install_index_build(idx);
 	if (cache_path)
 		gd_install_index_save(idx, cache_path);
@@ -740,7 +750,8 @@ bool gd_install_index_load_or_build(GD_InstallIndex *idx, const char *cache_path
 
 static HANDLE s_index_worker = NULL;
 
-static DWORD WINAPI index_worker_thread(LPVOID param) {
+static DWORD WINAPI index_worker_thread(LPVOID param)
+{
 	GD_State *state = (GD_State *)param;
 	if (!state)
 		return 1;
@@ -756,14 +767,15 @@ static DWORD WINAPI index_worker_thread(LPVOID param) {
 		gd_install_index_save(&state->index_scratch, cache);
 
 	GD_Event evt = {};
-	evt.kind           = GD_EVT_INDEX_READY;
+	evt.kind = GD_EVT_INDEX_READY;
 	evt.index_built_ms = state->index_scratch.built_ms;
 	if (state->post_event)
 		state->post_event(&evt);
 	return 0;
 }
 
-void gd_index_apply_ready(GD_State *state, uint64_t built_ms) {
+void gd_index_apply_ready(GD_State *state, uint64_t built_ms)
+{
 	if (!state)
 		return;
 
@@ -781,12 +793,12 @@ void gd_index_apply_ready(GD_State *state, uint64_t built_ms) {
 		s_index_worker = NULL;
 	}
 
-	blog(LOG_INFO,
-	     "[obs-game-detector] install index refreshed: %d entries, %d lookup dirs",
+	blog(LOG_INFO, "[obs-game-detector] install index refreshed: %d entries, %d lookup dirs",
 	     state->index.entry_count, state->index.lookup_dir_count);
 }
 
-void gd_install_index_worker_join(void) {
+void gd_install_index_worker_join(void)
+{
 	if (!s_index_worker)
 		return;
 	WaitForSingleObject(s_index_worker, INFINITE);
@@ -794,7 +806,8 @@ void gd_install_index_worker_join(void) {
 	s_index_worker = NULL;
 }
 
-void gd_install_index_rebuild_async(GD_State *state) {
+void gd_install_index_rebuild_async(GD_State *state)
+{
 	if (!state || state->index_rebuild_pending)
 		return;
 
@@ -807,11 +820,12 @@ void gd_install_index_rebuild_async(GD_State *state) {
 }
 
 // lookup
-static int cmp_dir_len_desc(const void *a, const void *b) {
+static int cmp_dir_len_desc(const void *a, const void *b)
+{
 	const char *sa = *(const char *const *)a;
 	const char *sb = *(const char *const *)b;
-	size_t      la = strlen(sa);
-	size_t      lb = strlen(sb);
+	size_t la = strlen(sa);
+	size_t lb = strlen(sb);
 	if (la > lb)
 		return -1;
 	if (la < lb)
@@ -819,8 +833,8 @@ static int cmp_dir_len_desc(const void *a, const void *b) {
 	return 0;
 }
 
-bool gd_lookup_matches_full_path(const GD_LookupTable *lt,
-                                 const char *full_path) {
+bool gd_lookup_matches_full_path(const GD_LookupTable *lt, const char *full_path)
+{
 	if (!lt || !full_path || !full_path[0])
 		return false;
 
@@ -830,16 +844,15 @@ bool gd_lookup_matches_full_path(const GD_LookupTable *lt,
 	return gd_lookup_path_matches(lt, path_lower);
 }
 
-void gd_lookup_build(GD_LookupTable *out, const GD_InstallIndex *idx,
-                     const GD_ConfigSnap *cfg) {
+void gd_lookup_build(GD_LookupTable *out, const GD_InstallIndex *idx, const GD_ConfigSnap *cfg)
+{
 	char *ptrs[GD_MAX_LOOKUP_DIRS];
-	int   n = 0;
+	int n = 0;
 
 	memset(out, 0, sizeof(*out));
 
 	if (idx) {
-		for (int i = 0; i < idx->lookup_dir_count && n < GD_MAX_LOOKUP_DIRS;
-		     i++) {
+		for (int i = 0; i < idx->lookup_dir_count && n < GD_MAX_LOOKUP_DIRS; i++) {
 			/* Skip dirs the user has hidden. */
 			if (cfg) {
 				bool hidden = false;
@@ -852,16 +865,13 @@ void gd_lookup_build(GD_LookupTable *out, const GD_InstallIndex *idx,
 				if (hidden)
 					continue;
 			}
-			if (gd_dir_add_unique(out->dirs, &out->dir_count,
-			                      GD_MAX_LOOKUP_DIRS,
-			                      idx->lookup_dirs[i]))
+			if (gd_dir_add_unique(out->dirs, &out->dir_count, GD_MAX_LOOKUP_DIRS, idx->lookup_dirs[i]))
 				ptrs[n++] = out->dirs[out->dir_count - 1];
 		}
 	}
 
 	if (cfg) {
-		for (int i = 0; i < cfg->custom_dir_count && n < GD_MAX_LOOKUP_DIRS;
-		     i++) {
+		for (int i = 0; i < cfg->custom_dir_count && n < GD_MAX_LOOKUP_DIRS; i++) {
 			/* Skip dirs the user has hidden. */
 			bool hidden = false;
 			for (int h = 0; h < cfg->hidden_dir_count; h++) {
@@ -872,9 +882,7 @@ void gd_lookup_build(GD_LookupTable *out, const GD_InstallIndex *idx,
 			}
 			if (hidden)
 				continue;
-			if (gd_dir_add_unique(out->dirs, &out->dir_count,
-			                      GD_MAX_LOOKUP_DIRS,
-			                      cfg->custom_dirs[i]))
+			if (gd_dir_add_unique(out->dirs, &out->dir_count, GD_MAX_LOOKUP_DIRS, cfg->custom_dirs[i]))
 				ptrs[n++] = out->dirs[out->dir_count - 1];
 		}
 	}
@@ -883,13 +891,14 @@ void gd_lookup_build(GD_LookupTable *out, const GD_InstallIndex *idx,
 		qsort(ptrs, (size_t)n, sizeof(char *), cmp_dir_len_desc);
 }
 
-bool gd_lookup_path_matches(const GD_LookupTable *lt, const char *path_lower) {
+bool gd_lookup_path_matches(const GD_LookupTable *lt, const char *path_lower)
+{
 	if (!lt || !path_lower || !path_lower[0])
 		return false;
 
 	for (int i = 0; i < lt->dir_count; i++) {
 		const char *dir = lt->dirs[i];
-		size_t      len = strlen(dir);
+		size_t len = strlen(dir);
 		if (len == 0)
 			continue;
 
@@ -904,10 +913,9 @@ bool gd_lookup_path_matches(const GD_LookupTable *lt, const char *path_lower) {
 	return false;
 }
 
-static bool resolve_from_index(const GD_InstallIndex *idx, char *dir_lower,
-                               GD_GameId *id_out, char *display_out,
-                               size_t display_cap, char *install_dir_out,
-                               size_t install_cap) {
+static bool resolve_from_index(const GD_InstallIndex *idx, char *dir_lower, GD_GameId *id_out, char *display_out,
+			       size_t display_cap, char *install_dir_out, size_t install_cap)
+{
 	for (int depth = 0; depth < 6; depth++) {
 		const char *leaf = strrchr(dir_lower, '\\');
 		leaf = leaf ? leaf + 1 : dir_lower;
@@ -926,11 +934,9 @@ static bool resolve_from_index(const GD_InstallIndex *idx, char *dir_lower,
 				if (id_out)
 					*id_out = e->id;
 				if (display_out)
-					gd_strlcpy(display_out, e->display_name,
-					           display_cap);
+					gd_strlcpy(display_out, e->display_name, display_cap);
 				if (install_dir_out)
-					gd_strlcpy(install_dir_out, e->install_dir,
-					           install_cap);
+					gd_strlcpy(install_dir_out, e->install_dir, install_cap);
 				return true;
 			}
 		}
@@ -944,9 +950,9 @@ static bool resolve_from_index(const GD_InstallIndex *idx, char *dir_lower,
 	return false;
 }
 
-bool gd_lookup_resolve(const GD_State *state, const char *full_path,
-                       GD_GameId *id_out, char *display_out, size_t display_cap,
-                       char *install_dir_out, size_t install_cap) {
+bool gd_lookup_resolve(const GD_State *state, const char *full_path, GD_GameId *id_out, char *display_out,
+		       size_t display_cap, char *install_dir_out, size_t install_cap)
+{
 	if (!state || !full_path || !full_path[0] || !display_out || display_cap == 0)
 		return false;
 
@@ -959,11 +965,12 @@ bool gd_lookup_resolve(const GD_State *state, const char *full_path,
 		*last_bs = '\0';
 	path_rstrip_bs(dir_lower);
 
-	return resolve_from_index(&state->index, dir_lower, id_out, display_out,
-	                          display_cap, install_dir_out, install_cap);
+	return resolve_from_index(&state->index, dir_lower, id_out, display_out, display_cap, install_dir_out,
+				  install_cap);
 }
 
-bool gd_lookup_dir_covered_by_index(const GD_InstallIndex *idx, const char *dir) {
+bool gd_lookup_dir_covered_by_index(const GD_InstallIndex *idx, const char *dir)
+{
 	if (!idx || !dir || !dir[0])
 		return false;
 
@@ -981,8 +988,8 @@ bool gd_lookup_dir_covered_by_index(const GD_InstallIndex *idx, const char *dir)
 	return false;
 }
 
-GD_GameId gd_index_id_for_display(const GD_InstallIndex *idx,
-                                  const char *display_name) {
+GD_GameId gd_index_id_for_display(const GD_InstallIndex *idx, const char *display_name)
+{
 	if (!idx || !display_name || !display_name[0])
 		return 0;
 
@@ -993,7 +1000,8 @@ GD_GameId gd_index_id_for_display(const GD_InstallIndex *idx,
 	return 0;
 }
 
-const char *gd_index_display_name(const GD_InstallIndex *idx, GD_GameId id) {
+const char *gd_index_display_name(const GD_InstallIndex *idx, GD_GameId id)
+{
 	if (!idx || id == 0)
 		return NULL;
 
@@ -1004,12 +1012,13 @@ const char *gd_index_display_name(const GD_InstallIndex *idx, GD_GameId id) {
 	return NULL;
 }
 
-bool gd_lookup_sanitize_index_dirs(GD_InstallIndex *idx) {
+bool gd_lookup_sanitize_index_dirs(GD_InstallIndex *idx)
+{
 	if (!idx)
 		return false;
 
 	char dirs[GD_MAX_LOOKUP_DIRS][GD_MAX_PATH];
-	int  n     = 0;
+	int n = 0;
 	bool dirty = false;
 
 	for (int i = 0; i < idx->lookup_dir_count; i++) {
@@ -1037,8 +1046,8 @@ bool gd_lookup_sanitize_index_dirs(GD_InstallIndex *idx) {
 	return dirty;
 }
 
-void gd_lookup_default_dirs(const GD_InstallIndex *idx, char dirs[][GD_MAX_PATH],
-                            int *count, int cap) {
+void gd_lookup_default_dirs(const GD_InstallIndex *idx, char dirs[][GD_MAX_PATH], int *count, int cap)
+{
 	*count = 0;
 	if (!idx)
 		return;
@@ -1048,20 +1057,22 @@ void gd_lookup_default_dirs(const GD_InstallIndex *idx, char dirs[][GD_MAX_PATH]
 }
 
 // config
-static void today_str(char *out, size_t cap) {
+static void today_str(char *out, size_t cap)
+{
 	time_t now = time(NULL);
 	struct tm *t = localtime(&now);
 	strftime(out, cap, "%Y-%m-%d", t);
 }
 
-static void add_dir_unique(GD_ConfigSnap *snap, const char *path) {
+static void add_dir_unique(GD_ConfigSnap *snap, const char *path)
+{
 	if (!snap)
 		return;
-	gd_dir_add_unique(snap->custom_dirs, &snap->custom_dir_count,
-	                   GD_MAX_LOOKUP_DIRS, path);
+	gd_dir_add_unique(snap->custom_dirs, &snap->custom_dir_count, GD_MAX_LOOKUP_DIRS, path);
 }
 
-static void snap_sanitize_tracks(GD_ConfigSnap *snap, bool *dirty) {
+static void snap_sanitize_tracks(GD_ConfigSnap *snap, bool *dirty)
+{
 	GD_RecTracks rec;
 	gd_recording_tracks(&rec);
 
@@ -1071,27 +1082,27 @@ static void snap_sanitize_tracks(GD_ConfigSnap *snap, bool *dirty) {
 	uint32_t def = gd_tracks_sanitize_mask(snap->default_tracks, rec.mask);
 	if (def != snap->default_tracks) {
 		snap->default_tracks = def;
-		*dirty               = true;
+		*dirty = true;
 	}
 
 	for (int i = 0; i < snap->game_count; i++) {
 		if (!snap->games[i].tracks_override)
 			continue;
 
-		uint32_t t =
-			gd_tracks_sanitize_mask(snap->games[i].tracks, rec.mask);
+		uint32_t t = gd_tracks_sanitize_mask(snap->games[i].tracks, rec.mask);
 		if (t != snap->games[i].tracks) {
 			snap->games[i].tracks = t;
-			*dirty                = true;
+			*dirty = true;
 		}
 		if (t == snap->default_tracks) {
 			snap->games[i].tracks_override = false;
-			*dirty                         = true;
+			*dirty = true;
 		}
 	}
 }
 
-static bool snap_sanitize(GD_ConfigSnap *snap, const GD_InstallIndex *idx) {
+static bool snap_sanitize(GD_ConfigSnap *snap, const GD_InstallIndex *idx)
+{
 	if (!snap)
 		return false;
 
@@ -1100,14 +1111,13 @@ static bool snap_sanitize(GD_ConfigSnap *snap, const GD_InstallIndex *idx) {
 	snap_sanitize_tracks(snap, &dirty);
 
 	char dirs[GD_MAX_LOOKUP_DIRS][GD_MAX_PATH];
-	int  dir_count = 0;
+	int dir_count = 0;
 	for (int i = 0; i < snap->custom_dir_count; i++) {
 		if (idx && gd_lookup_dir_covered_by_index(idx, snap->custom_dirs[i])) {
 			dirty = true;
 			continue;
 		}
-		if (!gd_dir_add_unique(dirs, &dir_count, GD_MAX_LOOKUP_DIRS,
-		                       snap->custom_dirs[i]))
+		if (!gd_dir_add_unique(dirs, &dir_count, GD_MAX_LOOKUP_DIRS, snap->custom_dirs[i]))
 			dirty = true;
 	}
 	if (dir_count != snap->custom_dir_count)
@@ -1127,11 +1137,9 @@ static bool snap_sanitize(GD_ConfigSnap *snap, const GD_InstallIndex *idx) {
 				continue;
 
 			if (strcmp(snap->games[i].last_seen, games[j].last_seen) > 0) {
-				gd_strlcpy(games[j].last_seen, snap->games[i].last_seen,
-				           sizeof(games[j].last_seen));
-				gd_strlcpy(games[j].display_name,
-				           snap->games[i].display_name,
-				           sizeof(games[j].display_name));
+				gd_strlcpy(games[j].last_seen, snap->games[i].last_seen, sizeof(games[j].last_seen));
+				gd_strlcpy(games[j].display_name, snap->games[i].display_name,
+					   sizeof(games[j].display_name));
 			}
 			if (!snap->games[i].enabled)
 				games[j].enabled = false;
@@ -1149,7 +1157,8 @@ static bool snap_sanitize(GD_ConfigSnap *snap, const GD_InstallIndex *idx) {
 	return dirty;
 }
 
-static void save_json(const GD_ConfigSnap *snap) {
+static void save_json(const GD_ConfigSnap *snap)
+{
 	char path[1024];
 	if (!path_config_file(path, sizeof(path), "config.json") || !snap)
 		return;
@@ -1225,8 +1234,8 @@ static void save_json(const GD_ConfigSnap *snap) {
 	obs_data_release(root);
 }
 
-static void load_json(GD_ConfigSnap *snap, const char *path,
-                      const GD_InstallIndex *seed_index) {
+static void load_json(GD_ConfigSnap *snap, const char *path, const GD_InstallIndex *seed_index)
+{
 	obs_data_t *data = obs_data_create_from_json_file(path);
 	if (!data)
 		return;
@@ -1237,7 +1246,7 @@ static void load_json(GD_ConfigSnap *snap, const char *path,
 		for (size_t i = 0; i < n && snap->game_count < GD_MAX_GAMES; i++) {
 			obs_data_t *item = obs_data_array_item(arr, i);
 			const char *idhex = obs_data_get_string(item, "game_id");
-			const char *nm    = obs_data_get_string(item, "display_name");
+			const char *nm = obs_data_get_string(item, "display_name");
 			if (!nm || !*nm)
 				nm = obs_data_get_string(item, "name");
 
@@ -1253,28 +1262,21 @@ static void load_json(GD_ConfigSnap *snap, const char *path,
 
 			GD_ConfigRecord *r = &snap->games[snap->game_count++];
 			r->id = gid;
-			const char *idx_nm =
-				seed_index ? gd_index_display_name(seed_index, gid) : NULL;
+			const char *idx_nm = seed_index ? gd_index_display_name(seed_index, gid) : NULL;
 			if (idx_nm && idx_nm[0])
-				gd_strlcpy(r->display_name, idx_nm,
-				           sizeof(r->display_name));
+				gd_strlcpy(r->display_name, idx_nm, sizeof(r->display_name));
 			else if (nm && *nm)
-				gd_strlcpy(r->display_name, nm,
-				           sizeof(r->display_name));
+				gd_strlcpy(r->display_name, nm, sizeof(r->display_name));
 			const char *ls = obs_data_get_string(item, "last_seen");
 			if (ls)
 				gd_strlcpy(r->last_seen, ls, sizeof(r->last_seen));
-			r->enabled = obs_data_has_user_value(item, "enabled")
-			                 ? obs_data_get_bool(item, "enabled")
-			                 : true;
-			r->hidden = obs_data_has_user_value(item, "hidden")
-			                ? obs_data_get_bool(item, "hidden")
-			                : false;
+			r->enabled = obs_data_has_user_value(item, "enabled") ? obs_data_get_bool(item, "enabled")
+									      : true;
+			r->hidden = obs_data_has_user_value(item, "hidden") ? obs_data_get_bool(item, "hidden") : false;
 			if (obs_data_has_user_value(item, "tracks_override") &&
 			    obs_data_get_bool(item, "tracks_override")) {
 				r->tracks_override = true;
-				r->tracks =
-					(uint32_t)obs_data_get_int(item, "tracks");
+				r->tracks = (uint32_t)obs_data_get_int(item, "tracks");
 			}
 			obs_data_release(item);
 		}
@@ -1286,10 +1288,9 @@ static void load_json(GD_ConfigSnap *snap, const char *path,
 		darr = obs_data_get_array(data, "custom_dirs");
 	if (darr) {
 		size_t n = obs_data_array_count(darr);
-		for (size_t i = 0; i < n && snap->custom_dir_count < GD_MAX_LOOKUP_DIRS;
-		     i++) {
+		for (size_t i = 0; i < n && snap->custom_dir_count < GD_MAX_LOOKUP_DIRS; i++) {
 			obs_data_t *item = obs_data_array_item(darr, i);
-			const char *v    = obs_data_get_string(item, "value");
+			const char *v = obs_data_get_string(item, "value");
 			if (v && *v)
 				add_dir_unique(snap, v);
 			obs_data_release(item);
@@ -1302,10 +1303,9 @@ static void load_json(GD_ConfigSnap *snap, const char *path,
 		size_t n = obs_data_array_count(hdarr);
 		for (size_t i = 0; i < n && snap->hidden_dir_count < GD_MAX_LOOKUP_DIRS; i++) {
 			obs_data_t *item = obs_data_array_item(hdarr, i);
-			const char *v    = obs_data_get_string(item, "value");
+			const char *v = obs_data_get_string(item, "value");
 			if (v && *v)
-				gd_dir_add_unique(snap->hidden_dirs, &snap->hidden_dir_count,
-				                  GD_MAX_LOOKUP_DIRS, v);
+				gd_dir_add_unique(snap->hidden_dirs, &snap->hidden_dir_count, GD_MAX_LOOKUP_DIRS, v);
 			obs_data_release(item);
 		}
 		obs_data_array_release(hdarr);
@@ -1316,10 +1316,9 @@ static void load_json(GD_ConfigSnap *snap, const char *path,
 		size_t n = obs_data_array_count(sarr);
 		for (size_t i = 0; i < n && snap->scene_count < GD_MAX_SCENES; i++) {
 			obs_data_t *item = obs_data_array_item(sarr, i);
-			const char *v    = obs_data_get_string(item, "value");
+			const char *v = obs_data_get_string(item, "value");
 			if (v && *v) {
-				gd_strlcpy(snap->scenes[snap->scene_count], v,
-				           GD_MAX_SCENE_LEN);
+				gd_strlcpy(snap->scenes[snap->scene_count], v, GD_MAX_SCENE_LEN);
 				snap->scene_count++;
 			}
 			obs_data_release(item);
@@ -1328,21 +1327,20 @@ static void load_json(GD_ConfigSnap *snap, const char *path,
 	}
 
 	if (obs_data_has_user_value(data, "default_tracks"))
-		snap->default_tracks =
-			(uint32_t)obs_data_get_int(data, "default_tracks");
+		snap->default_tracks = (uint32_t)obs_data_get_int(data, "default_tracks");
 
 	obs_data_release(data);
 }
 
-uint32_t gd_config_mixer_mask(const GD_ConfigSnap *cfg, GD_GameId id) {
+uint32_t gd_config_mixer_mask(const GD_ConfigSnap *cfg, GD_GameId id)
+{
 	if (!cfg)
 		return 0x03;
 
 	GD_RecTracks rec;
 	gd_recording_tracks(&rec);
 
-	uint32_t mask = gd_tracks_sanitize_mask(
-		cfg->default_tracks ? cfg->default_tracks : 0x03, rec.mask);
+	uint32_t mask = gd_tracks_sanitize_mask(cfg->default_tracks ? cfg->default_tracks : 0x03, rec.mask);
 
 	const GD_ConfigRecord *r = gd_config_find(cfg, id);
 	if (r && r->tracks_override)
@@ -1351,12 +1349,13 @@ uint32_t gd_config_mixer_mask(const GD_ConfigSnap *cfg, GD_GameId id) {
 	return mask;
 }
 
-void gd_config_load(GD_State *state) {
+void gd_config_load(GD_State *state)
+{
 	if (!state)
 		return;
 
 	GD_ConfigSnap scratch = {};
-	char          path[1024];
+	char path[1024];
 	if (path_config_file(path, sizeof(path), "config.json"))
 		load_json(&scratch, path, &state->index);
 
@@ -1366,7 +1365,8 @@ void gd_config_load(GD_State *state) {
 	state->config = scratch;
 }
 
-bool gd_config_apply(GD_State *state, const GD_ConfigSnap *scratch) {
+bool gd_config_apply(GD_State *state, const GD_ConfigSnap *scratch)
+{
 	if (!state || !scratch)
 		return false;
 
@@ -1378,7 +1378,8 @@ bool gd_config_apply(GD_State *state, const GD_ConfigSnap *scratch) {
 	return true;
 }
 
-const GD_ConfigRecord *gd_config_find(const GD_ConfigSnap *cfg, GD_GameId id) {
+const GD_ConfigRecord *gd_config_find(const GD_ConfigSnap *cfg, GD_GameId id)
+{
 	if (!cfg)
 		return NULL;
 	for (int i = 0; i < cfg->game_count; i++)
@@ -1387,13 +1388,14 @@ const GD_ConfigRecord *gd_config_find(const GD_ConfigSnap *cfg, GD_GameId id) {
 	return NULL;
 }
 
-bool gd_config_is_enabled(const GD_ConfigSnap *cfg, GD_GameId id) {
+bool gd_config_is_enabled(const GD_ConfigSnap *cfg, GD_GameId id)
+{
 	const GD_ConfigRecord *r = gd_config_find(cfg, id);
 	return r && r->enabled && !r->hidden;
 }
 
-void gd_config_record_game(GD_State *state, GD_GameId id,
-                           const char *display_name) {
+void gd_config_record_game(GD_State *state, GD_GameId id, const char *display_name)
+{
 	if (!state || !display_name || !*display_name || id == 0)
 		return;
 
@@ -1407,10 +1409,9 @@ void gd_config_record_game(GD_State *state, GD_GameId id,
 
 	for (int i = 0; i < state->config.game_count; i++) {
 		if (state->config.games[i].id == id) {
-			gd_strlcpy(state->config.games[i].last_seen, today,
-			           sizeof(state->config.games[i].last_seen));
+			gd_strlcpy(state->config.games[i].last_seen, today, sizeof(state->config.games[i].last_seen));
 			gd_strlcpy(state->config.games[i].display_name, label,
-			           sizeof(state->config.games[i].display_name));
+				   sizeof(state->config.games[i].display_name));
 			save_json(&state->config);
 			return;
 		}
@@ -1419,9 +1420,8 @@ void gd_config_record_game(GD_State *state, GD_GameId id,
 	if (state->config.game_count >= GD_MAX_GAMES)
 		return;
 
-	GD_ConfigRecord *r =
-		&state->config.games[state->config.game_count++];
-	r->id      = id;
+	GD_ConfigRecord *r = &state->config.games[state->config.game_count++];
+	r->id = id;
 	r->enabled = true;
 	gd_strlcpy(r->display_name, label, sizeof(r->display_name));
 	gd_strlcpy(r->last_seen, today, sizeof(r->last_seen));

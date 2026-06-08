@@ -1093,7 +1093,8 @@ static bool place_capture_in_group(obs_source_t *source, char scenes[][GD_MAX_SC
 				}
 				bool present = false;
 				if (state && slot >= 0 && state->grp_item_ids[slot] != 0)
-					present = obs_scene_find_sceneitem_by_id(scene, state->grp_item_ids[slot]) != NULL;
+					present = obs_scene_find_sceneitem_by_id(scene, state->grp_item_ids[slot]) !=
+						  NULL;
 				if (!present)
 					present = obs_scene_find_source(scene, GD_GROUP_NAME) != NULL;
 				if (!present) {

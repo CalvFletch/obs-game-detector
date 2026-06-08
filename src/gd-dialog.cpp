@@ -154,8 +154,7 @@ GDSettingsDialog::GDSettingsDialog(QWidget *parent) : QDialog(parent)
 
 	m_tabs->addTab(scenes_page, "Target Scenes");
 
-	auto *btns =
-		new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
+	auto *btns = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
 	root->addWidget(btns);
 
 	connect(m_table, &QTableWidget::customContextMenuRequested, this, &GDSettingsDialog::onGameContextMenu);
