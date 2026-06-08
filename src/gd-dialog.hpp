@@ -19,7 +19,6 @@ private slots:
 	void onRemoveDir();
 	void onRestoreDefaults();
 	void onRefreshLibraries();
-	void onApply();
 
 private:
 	void loadData();

@@ -145,7 +145,7 @@ GDSettingsDialog::GDSettingsDialog(QWidget *parent) : QDialog(parent)
 	m_tabs->addTab(scenes_page, "Target Scenes");
 
 	auto *btns =
-		new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel | QDialogButtonBox::Apply, this);
+		new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
 	root->addWidget(btns);
 
 	connect(m_table, &QTableWidget::customContextMenuRequested, this, &GDSettingsDialog::onGameContextMenu);
@@ -153,7 +153,7 @@ GDSettingsDialog::GDSettingsDialog(QWidget *parent) : QDialog(parent)
 	connect(rem_dir_btn, &QPushButton::clicked, this, &GDSettingsDialog::onRemoveDir);
 	connect(rst_btn, &QPushButton::clicked, this, &GDSettingsDialog::onRestoreDefaults);
 	connect(ref_btn, &QPushButton::clicked, this, &GDSettingsDialog::onRefreshLibraries);
-	connect(btns->button(QDialogButtonBox::Apply), &QPushButton::clicked, this, &GDSettingsDialog::onApply);
+	connect(m_scenes, &QListWidget::itemChanged, this, [this](QListWidgetItem *) { saveData(); });
 	connect(btns, &QDialogButtonBox::accepted, this, [this]() {
 		saveData();
 		accept();
@@ -247,6 +247,7 @@ void GDSettingsDialog::onTrackCellToggled(int row, int col, bool checked)
 	// Row 0 is the Default row — propagate to all non-override game rows.
 	if (row == 0) {
 		syncInheritedTrackRows();
+		saveData();
 		return;
 	}
 
@@ -284,6 +285,7 @@ void GDSettingsDialog::onTrackCellToggled(int row, int col, bool checked)
 		if (row_item)
 			row_item->setData(kTracksOverride, readRowTrackMask(r) != cur_def);
 	}
+	saveData();
 }
 
 void GDSettingsDialog::syncInheritedTrackRows()
@@ -357,7 +359,8 @@ void GDSettingsDialog::loadData()
 		m_table->item(row, 0)->setData(kGameDisabled, r->hidden);
 
 		auto *cell = new QWidget(this);
-		make_centered_checkbox(cell, r->enabled);
+		auto *cap_chk = make_centered_checkbox(cell, r->enabled);
+		connect(cap_chk, &QCheckBox::toggled, this, [this](bool) { saveData(); });
 		m_table->setCellWidget(row, 2, cell);
 
 		uint32_t game_mask = def_mask;
@@ -489,6 +492,7 @@ void GDSettingsDialog::onGameContextMenu(const QPoint &pos)
 				m_table->item(row, 0)->setForeground(normal);
 				m_table->item(row, 1)->setForeground(normal);
 				m_table->item(row, 0)->setData(kGameDisabled, false);
+				saveData();
 			});
 		} else {
 			auto *disable_act = menu.addAction("Disable");
@@ -498,6 +502,7 @@ void GDSettingsDialog::onGameContextMenu(const QPoint &pos)
 				m_table->item(row, 0)->setData(kGameDisabled, true);
 				if (!m_showDisabled)
 					m_table->setRowHidden(row, true);
+				saveData();
 			});
 		}
 		menu.addSeparator();
@@ -534,6 +539,7 @@ void GDSettingsDialog::onGameContextMenu(const QPoint &pos)
 				m_table->item(i, 0)->setData(kGameDisabled, false);
 				m_table->setRowHidden(i, false);
 			}
+			saveData();
 		});
 	}
 
@@ -548,6 +554,7 @@ void GDSettingsDialog::onAddDir()
 	if (!dir.isEmpty()) {
 		auto *it = new QListWidgetItem(dir, m_dirs);
 		it->setData(kDirDiscovered, false);
+		saveData();
 	}
 }
 
@@ -557,22 +564,19 @@ void GDSettingsDialog::onRemoveDir()
 	if (!it || it->data(kDirDiscovered).toBool())
 		return;
 	delete it;
+	saveData();
 }
 
 void GDSettingsDialog::onRestoreDefaults()
 {
 	m_dirs->clear();
 	list_discovered_dirs(m_dirs, &gd_state()->index);
+	saveData();
 }
 
 void GDSettingsDialog::onRefreshLibraries()
 {
 	gd_request_index_rebuild();
-}
-
-void GDSettingsDialog::onApply()
-{
-	saveData();
 }
 
 extern "C" void gd_open_dialog(void)
