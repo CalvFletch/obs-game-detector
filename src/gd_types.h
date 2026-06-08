@@ -14,7 +14,6 @@
 #define GD_MAX_SCENE_LEN    256
 #define GD_EVENT_QUEUE_CAP  256
 
-#define GD_DEFAULT_SCENE    "Gaming"
 #define GD_DEFAULT_GROUP    "Game Audio"
 #define GD_COLOR_ORANGE     7
 #define GD_INDEX_REBUILD_MS (30ULL * 60 * 1000)

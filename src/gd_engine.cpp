@@ -600,18 +600,13 @@ static bool is_gd_wasapi_capture(obs_source_t *src)
 	return sid && strcmp(sid, "wasapi_process_output_capture") == 0;
 }
 
-static void get_target_scenes(const GD_ConfigSnap *cfg, char scenes[][GD_MAX_SCENE_LEN], int *count,
-			      bool use_default_fallback)
+static void get_target_scenes(const GD_ConfigSnap *cfg, char scenes[][GD_MAX_SCENE_LEN], int *count)
 {
 	*count = 0;
 	if (cfg) {
 		*count = cfg->scene_count;
 		for (int i = 0; i < cfg->scene_count; i++)
 			gd_strlcpy(scenes[i], cfg->scenes[i], GD_MAX_SCENE_LEN);
-	}
-	if (*count == 0 && use_default_fallback) {
-		gd_strlcpy(scenes[0], GD_DEFAULT_SCENE, GD_MAX_SCENE_LEN);
-		*count = 1;
 	}
 }
 
@@ -1130,7 +1125,7 @@ static void place_audio(GD_State *state, GD_TrackedGame *g, bool notify)
 
 	char scenes[GD_MAX_SCENES][GD_MAX_SCENE_LEN];
 	int scene_count = 0;
-	get_target_scenes(cfg, scenes, &scene_count, true);
+	get_target_scenes(cfg, scenes, &scene_count);
 
 	bool placed = place_capture_in_group(source, scenes, scene_count);
 	dedupe_captures_for_game_id(g->id, source);
@@ -1234,7 +1229,7 @@ static void sync_group_to_scenes(void)
 		char scenes[GD_MAX_SCENES][GD_MAX_SCENE_LEN];
 		int scene_count;
 	} ctx = {};
-	get_target_scenes(cfg, ctx.scenes, &ctx.scene_count, false);
+	get_target_scenes(cfg, ctx.scenes, &ctx.scene_count);
 
 	obs_source_t *grp_src = get_group_source(false);
 	if (grp_src) {
