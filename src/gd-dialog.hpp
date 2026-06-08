@@ -5,7 +5,6 @@
 #include <QListWidget>
 #include <QCheckBox>
 #include <QWidget>
-#include <QStringList>
 #include <vector>
 
 class GDSettingsDialog : public QDialog {
@@ -17,7 +16,7 @@ public:
 private slots:
 	void onRemoveGame();
 	void onAddDir();
-	void onDirContextMenu(const QPoint &pos);
+	void onRemoveDir();
 	void onRestoreDefaults();
 	void onRefreshLibraries();
 	void onApply();
@@ -36,7 +35,6 @@ private:
 	QTableWidget *m_table;
 	QListWidget *m_dirs;
 	QListWidget *m_scenes;
-	QStringList m_hidden_dirs; /* dirs hidden from the list, persisted on save */
 	int m_rec_track_nums[6];
 	int m_rec_track_count;
 	uint32_t m_rec_track_mask;
