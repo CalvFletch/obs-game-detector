@@ -1,8 +1,6 @@
 # OBS Game Detector
 
-Automatically adds per game audio capture to OBS when you launch a game from Steam, Epic, GOG, or Ubisoft Connect. No scripts, no WebSocket, no extra apps running in the background
-
-When a supported game starts, the plugin creates an audio source for it and places it in a **Gaming Audio** group in your chosen scenes. When the game closes, the source is removed.
+Automatically adds per game audio capture to OBS when you launch a game based on library locations.
 
 ## Requirements
 
@@ -16,28 +14,9 @@ When a supported game starts, the plugin creates an audio source for it and plac
 3. Copy the `obs-game-detector` folder into:
 
        %ProgramData%\obs-studio\plugins\
-
-   You should end up with:
-
-       %ProgramData%\obs-studio\plugins\obs-game-detector\bin\64bit\obs-game-detector.dll
-
 4. Restart OBS.
 
-Close OBS before updating the plugin. If Windows reports that the file is in use, OBS is still running.
-
-## First run
-
-On startup the plugin scans your game libraries and watches for new game processes. Games that were already running when OBS opened are picked up automatically.
-
-Default layout:
-
-- **Gaming Audio** group in the **Gaming** scene
-- Orange colour label on each source
-- A short notification when a new game is detected
-
-Create a scene named **Gaming** in OBS if you do not have one yet, or change the target scenes in settings (below).
-
-## Settings
+## Setup
 
 Open **Tools -> Game Detector Settings** in OBS.
 
@@ -57,7 +36,7 @@ Use **Add Directory** only for games installed outside those libraries (for exam
 
 ### Target Scenes
 
-Choose which OBS scenes receive the **Gaming Audio** group. Only checked scenes are updated.
+Choose which OBS scenes receive the **Game Audio** group. Only checked scenes are updated.
 
 ## Troubleshooting
 
@@ -70,10 +49,6 @@ Choose which OBS scenes receive the **Gaming Audio** group. Only checked scenes 
 **Audio source was created for the wrong process**
 
 - Some launchers spawn helper processes before the real game. The plugin filters common launcher and anti-cheat processes; if something still slips through, disable that entry under **Known Games**.
-
-**Changes in settings did not apply**
-
-- Click **Apply** or **OK** before closing the dialog.
 
 ## Building from source
 
