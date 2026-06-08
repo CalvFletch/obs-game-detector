@@ -853,18 +853,6 @@ void gd_lookup_build(GD_LookupTable *out, const GD_InstallIndex *idx, const GD_C
 
 	if (idx) {
 		for (int i = 0; i < idx->lookup_dir_count && n < GD_MAX_LOOKUP_DIRS; i++) {
-			/* Skip dirs the user has hidden. */
-			if (cfg) {
-				bool hidden = false;
-				for (int h = 0; h < cfg->hidden_dir_count; h++) {
-					if (_stricmp(cfg->hidden_dirs[h], idx->lookup_dirs[i]) == 0) {
-						hidden = true;
-						break;
-					}
-				}
-				if (hidden)
-					continue;
-			}
 			if (gd_dir_add_unique(out->dirs, &out->dir_count, GD_MAX_LOOKUP_DIRS, idx->lookup_dirs[i]))
 				ptrs[n++] = out->dirs[out->dir_count - 1];
 		}
@@ -872,16 +860,6 @@ void gd_lookup_build(GD_LookupTable *out, const GD_InstallIndex *idx, const GD_C
 
 	if (cfg) {
 		for (int i = 0; i < cfg->custom_dir_count && n < GD_MAX_LOOKUP_DIRS; i++) {
-			/* Skip dirs the user has hidden. */
-			bool hidden = false;
-			for (int h = 0; h < cfg->hidden_dir_count; h++) {
-				if (_stricmp(cfg->hidden_dirs[h], cfg->custom_dirs[i]) == 0) {
-					hidden = true;
-					break;
-				}
-			}
-			if (hidden)
-				continue;
 			if (gd_dir_add_unique(out->dirs, &out->dir_count, GD_MAX_LOOKUP_DIRS, cfg->custom_dirs[i]))
 				ptrs[n++] = out->dirs[out->dir_count - 1];
 		}
@@ -1210,16 +1188,6 @@ static void save_json(const GD_ConfigSnap *snap)
 	obs_data_set_array(root, "dirs", darr);
 	obs_data_array_release(darr);
 
-	obs_data_array_t *hdarr = obs_data_array_create();
-	for (int i = 0; i < snap->hidden_dir_count; i++) {
-		obs_data_t *item = obs_data_create();
-		obs_data_set_string(item, "value", snap->hidden_dirs[i]);
-		obs_data_array_push_back(hdarr, item);
-		obs_data_release(item);
-	}
-	obs_data_set_array(root, "hidden_dirs", hdarr);
-	obs_data_array_release(hdarr);
-
 	obs_data_array_t *sarr = obs_data_array_create();
 	for (int i = 0; i < snap->scene_count; i++) {
 		obs_data_t *item = obs_data_create();
@@ -1296,19 +1264,6 @@ static void load_json(GD_ConfigSnap *snap, const char *path, const GD_InstallInd
 			obs_data_release(item);
 		}
 		obs_data_array_release(darr);
-	}
-
-	obs_data_array_t *hdarr = obs_data_get_array(data, "hidden_dirs");
-	if (hdarr) {
-		size_t n = obs_data_array_count(hdarr);
-		for (size_t i = 0; i < n && snap->hidden_dir_count < GD_MAX_LOOKUP_DIRS; i++) {
-			obs_data_t *item = obs_data_array_item(hdarr, i);
-			const char *v = obs_data_get_string(item, "value");
-			if (v && *v)
-				gd_dir_add_unique(snap->hidden_dirs, &snap->hidden_dir_count, GD_MAX_LOOKUP_DIRS, v);
-			obs_data_release(item);
-		}
-		obs_data_array_release(hdarr);
 	}
 
 	obs_data_array_t *sarr = obs_data_get_array(data, "scenes");
