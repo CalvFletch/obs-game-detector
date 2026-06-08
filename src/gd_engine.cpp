@@ -600,17 +600,6 @@ static bool is_gd_wasapi_capture(obs_source_t *src)
 	return sid && strcmp(sid, "wasapi_process_output_capture") == 0;
 }
 
-/* Callback for obs_scene_enum_items: checks if any item uses the marker source. */
-static bool has_gd_marker_cb(obs_scene_t *, obs_sceneitem_t *item, void *data)
-{
-	obs_source_t *src = obs_sceneitem_get_source(item);
-	if (src && strcmp(obs_source_get_unversioned_id(src), "gd_auto_game_audio") == 0) {
-		*static_cast<bool *>(data) = true;
-		return false;
-	}
-	return true;
-}
-
 static void get_target_scenes(const GD_ConfigSnap *cfg, char scenes[][GD_MAX_SCENE_LEN], int *count)
 {
 	*count = 0;
@@ -619,39 +608,6 @@ static void get_target_scenes(const GD_ConfigSnap *cfg, char scenes[][GD_MAX_SCE
 		for (int i = 0; i < cfg->scene_count; i++)
 			gd_strlcpy(scenes[i], cfg->scenes[i], GD_MAX_SCENE_LEN);
 	}
-
-	/* Also include any scene that contains an "Auto Game Audio" marker source. */
-	char **scene_names = obs_frontend_get_scene_names();
-	if (!scene_names)
-		return;
-
-	for (int i = 0; scene_names[i] && *count < GD_MAX_SCENES; i++) {
-		/* Skip if already in the list. */
-		bool already = false;
-		for (int j = 0; j < *count; j++) {
-			if (strcmp(scenes[j], scene_names[i]) == 0) {
-				already = true;
-				break;
-			}
-		}
-		if (already)
-			continue;
-
-		obs_source_t *sc_src = obs_get_source_by_name(scene_names[i]);
-		if (!sc_src)
-			continue;
-
-		obs_scene_t *sc = obs_scene_from_source(sc_src);
-		bool found = false;
-		if (sc)
-			obs_scene_enum_items(sc, has_gd_marker_cb, &found);
-		obs_source_release(sc_src);
-
-		if (found)
-			gd_strlcpy(scenes[(*count)++], scene_names[i], GD_MAX_SCENE_LEN);
-	}
-
-	bfree(scene_names);
 }
 
 static void show_obs_notification(const char *game_name);
@@ -728,6 +684,55 @@ static obs_source_t *get_group_source(bool log_wrong_type)
 		return NULL;
 	}
 	return grp_src;
+}
+
+void gd_ensure_group_in_scene(const char *scene_name)
+{
+	if (!scene_name)
+		return;
+	obs_source_t *sc_src = obs_get_source_by_name(scene_name);
+	if (!sc_src)
+		return;
+	obs_scene_t *scene = obs_scene_from_source(sc_src);
+	if (scene) {
+		/* Find which config slot this scene occupies so we can store the item ID. */
+		GD_State *state = gd_state();
+		int slot = -1;
+		if (state) {
+			for (int i = 0; i < state->config.scene_count; i++) {
+				if (strcmp(state->config.scenes[i], scene_name) == 0) {
+					slot = i;
+					break;
+				}
+			}
+		}
+
+		/* Check if the group item is already present via stored ID first. */
+		bool already_present = false;
+		if (state && slot >= 0 && state->grp_item_ids[slot] != 0) {
+			obs_sceneitem_t *existing = obs_scene_find_sceneitem_by_id(scene, state->grp_item_ids[slot]);
+			if (existing)
+				already_present = true;
+		}
+		if (!already_present)
+			already_present = obs_scene_find_source(scene, GD_GROUP_NAME) != NULL;
+
+		if (!already_present) {
+			obs_source_t *grp_src = get_group_source(false);
+			if (!grp_src)
+				grp_src = obs_source_create("group", GD_GROUP_NAME, NULL, NULL);
+			if (grp_src) {
+				obs_sceneitem_t *grp_item = obs_scene_add(scene, grp_src);
+				if (grp_item) {
+					obs_sceneitem_set_locked(grp_item, true);
+					if (state && slot >= 0)
+						state->grp_item_ids[slot] = obs_sceneitem_get_id(grp_item);
+				}
+				obs_source_release(grp_src);
+			}
+		}
+	}
+	obs_source_release(sc_src);
 }
 
 static void reinstate_connect(GD_TrackedGame *g)
@@ -1077,10 +1082,31 @@ static bool place_capture_in_group(obs_source_t *source, char scenes[][GD_MAX_SC
 		if (scene) {
 			if (!grp_src)
 				grp_src = obs_source_create("group", GD_GROUP_NAME, NULL, NULL);
-			if (grp_src && !obs_scene_find_source(scene, GD_GROUP_NAME)) {
-				obs_sceneitem_t *grp_item = obs_scene_add(scene, grp_src);
-				if (grp_item)
-					obs_sceneitem_set_locked(grp_item, true);
+			if (grp_src) {
+				/* Check by stored ID first, fall back to name lookup. */
+				GD_State *state = gd_state();
+				int slot = -1;
+				if (state) {
+					for (int j = 0; j < state->config.scene_count; j++) {
+						if (strcmp(state->config.scenes[j], scenes[i]) == 0) {
+							slot = j;
+							break;
+						}
+					}
+				}
+				bool present = false;
+				if (state && slot >= 0 && state->grp_item_ids[slot] != 0)
+					present = obs_scene_find_sceneitem_by_id(scene, state->grp_item_ids[slot]) != NULL;
+				if (!present)
+					present = obs_scene_find_source(scene, GD_GROUP_NAME) != NULL;
+				if (!present) {
+					obs_sceneitem_t *grp_item = obs_scene_add(scene, grp_src);
+					if (grp_item) {
+						obs_sceneitem_set_locked(grp_item, true);
+						if (state && slot >= 0)
+							state->grp_item_ids[slot] = obs_sceneitem_get_id(grp_item);
+					}
+				}
 			}
 		}
 		obs_source_release(sc_src);

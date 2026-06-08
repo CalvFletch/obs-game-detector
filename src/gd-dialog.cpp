@@ -88,15 +88,6 @@ GDSettingsDialog::GDSettingsDialog(QWidget *parent) : QDialog(parent)
 	hint->setWordWrap(true);
 	games_lay->addWidget(hint);
 
-	m_default_tracks_row = new QWidget(games_page);
-	auto *def_lay = new QHBoxLayout(m_default_tracks_row);
-	def_lay->setContentsMargins(0, 0, 0, 0);
-	auto *def_lbl = new QLabel("Default audio tracks:", m_default_tracks_row);
-	def_lbl->setStyleSheet("font-weight: bold;");
-	def_lay->addWidget(def_lbl);
-	def_lay->addStretch();
-	games_lay->addWidget(m_default_tracks_row);
-
 	m_table = new QTableWidget(games_page);
 	m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
 	m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
@@ -180,22 +171,9 @@ void GDSettingsDialog::rebuildTrackColumns()
 	m_rec_track_mask = rec.mask;
 	memcpy(m_rec_track_nums, rec.track_nums, sizeof(int) * (size_t)m_rec_track_count);
 
-	for (auto *cb : m_default_track_boxes)
-		delete cb;
-	m_default_track_boxes.clear();
-
-	auto *def_lay = m_default_tracks_row->layout();
-	while (def_lay->count() > 2)
-		delete def_lay->takeAt(def_lay->count() - 1)->widget();
-
 	QStringList headers = {"Game", "Last Seen", "Capture"};
-	for (int i = 0; i < m_rec_track_count; i++) {
-		auto *cb = new QCheckBox(QString("Track %1").arg(m_rec_track_nums[i]), m_default_tracks_row);
-		def_lay->addWidget(cb);
-		m_default_track_boxes.push_back(cb);
+	for (int i = 0; i < m_rec_track_count; i++)
 		headers << QString::number(m_rec_track_nums[i]);
-		connect(cb, &QCheckBox::toggled, this, &GDSettingsDialog::onDefaultTracksChanged);
-	}
 
 	m_table->setColumnCount(headers.size());
 	m_table->setHorizontalHeaderLabels(headers);
@@ -260,22 +238,64 @@ uint32_t GDSettingsDialog::readRowTrackMask(int row) const
 	return readTrackMask(track_boxes_for_row(m_table, row, m_rec_track_count));
 }
 
+void GDSettingsDialog::onTrackCellToggled(int row, int col, bool checked)
+{
+	if (!m_table)
+		return;
+
+	// Row 0 is the Default row — propagate to all non-override game rows.
+	if (row == 0) {
+		syncInheritedTrackRows();
+		return;
+	}
+
+	// For game rows: if the toggled row is part of a multi-selection,
+	// apply the same change to all selected game rows.
+	QList<int> targets;
+	auto selected = m_table->selectionModel()->selectedRows();
+	bool in_selection = false;
+	for (const auto &idx : selected) {
+		if (idx.row() == row) {
+			in_selection = true;
+			break;
+		}
+	}
+	if (in_selection && selected.size() > 1) {
+		for (const auto &idx : selected)
+			if (idx.row() > 0)
+				targets.append(idx.row());
+	} else {
+		targets.append(row);
+	}
+
+	uint32_t cur_def = readRowTrackMask(0);
+	for (int r : targets) {
+		auto *cell = m_table->cellWidget(r, col);
+		if (cell) {
+			auto *cb = cell->findChild<QCheckBox *>();
+			if (cb && cb->isChecked() != checked) {
+				cb->blockSignals(true);
+				cb->setChecked(checked);
+				cb->blockSignals(false);
+			}
+		}
+		auto *row_item = m_table->item(r, 0);
+		if (row_item)
+			row_item->setData(kTracksOverride, readRowTrackMask(r) != cur_def);
+	}
+}
+
 void GDSettingsDialog::syncInheritedTrackRows()
 {
 	if (!m_table)
 		return;
-	uint32_t def_mask = readTrackMask(m_default_track_boxes);
-	for (int row = 0; row < m_table->rowCount(); row++) {
+	uint32_t def_mask = readRowTrackMask(0);
+	for (int row = 1; row < m_table->rowCount(); row++) {
 		auto *item = m_table->item(row, 0);
 		if (!item || item->data(kTracksOverride).toBool())
 			continue;
 		setTrackMask(track_boxes_for_row(m_table, row, m_rec_track_count), def_mask);
 	}
-}
-
-void GDSettingsDialog::onDefaultTracksChanged()
-{
-	syncInheritedTrackRows();
 }
 
 void GDSettingsDialog::loadData()
@@ -289,34 +309,54 @@ void GDSettingsDialog::loadData()
 
 	uint32_t def_mask = snap->default_tracks ? snap->default_tracks : 0x03;
 	def_mask = gd_tracks_sanitize_mask(def_mask, m_rec_track_mask);
-	setTrackMask(m_default_track_boxes, def_mask);
 
-	for (auto *cb : m_default_track_boxes)
-		cb->blockSignals(true);
+	m_table->setRowCount(snap->game_count + 1);
 
-	m_table->setRowCount(snap->game_count);
+	// Row 0 — Default tracks row
+	auto *def_name = new QTableWidgetItem("Default");
+	def_name->setFlags(Qt::ItemIsEnabled);
+	QFont bold_font = def_name->font();
+	bold_font.setBold(true);
+	def_name->setFont(bold_font);
+	def_name->setToolTip("Default audio tracks applied to new games");
+	m_table->setItem(0, 0, def_name);
+	for (int col : {1, 2}) {
+		auto *empty = new QTableWidgetItem();
+		empty->setFlags(Qt::ItemIsEnabled);
+		m_table->setItem(0, col, empty);
+	}
+	for (int t = 0; t < m_rec_track_count; t++) {
+		auto *track_cell = new QWidget(this);
+		auto *tcb = make_centered_checkbox(track_cell, (def_mask & (1u << (m_rec_track_nums[t] - 1))) != 0);
+		connect(tcb, &QCheckBox::toggled, this,
+			[this, t](bool checked) { onTrackCellToggled(0, kTrackColBase + t, checked); });
+		m_table->setCellWidget(0, kTrackColBase + t, track_cell);
+	}
+
+	// Game rows start at 1
 	for (int i = 0; i < snap->game_count; i++) {
+		int row = i + 1;
 		const GD_ConfigRecord *r = &snap->games[i];
 		const char *label = gd_index_display_name(idx, r->id);
 		if (!label || !label[0])
 			label = r->display_name;
 		auto *name_item = new QTableWidgetItem(QString::fromUtf8(label));
 		name_item->setToolTip(QString::fromUtf8(label));
-		m_table->setItem(i, 0, name_item);
+		m_table->setItem(row, 0, name_item);
 
 		auto *seen_item = new QTableWidgetItem(format_last_seen(r->last_seen));
 		seen_item->setData(kLastSeenRaw, QString::fromUtf8(r->last_seen));
 		seen_item->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
-		m_table->setItem(i, 1, seen_item);
+		m_table->setItem(row, 1, seen_item);
 
 		char idhex[32];
 		gd_game_id_to_hex(r->id, idhex, sizeof(idhex));
-		m_table->item(i, 0)->setData(Qt::UserRole, QString::fromUtf8(idhex));
-		m_table->item(i, 0)->setData(kTracksOverride, r->tracks_override);
+		m_table->item(row, 0)->setData(Qt::UserRole, QString::fromUtf8(idhex));
+		m_table->item(row, 0)->setData(kTracksOverride, r->tracks_override);
 
 		auto *cell = new QWidget(this);
 		make_centered_checkbox(cell, r->enabled);
-		m_table->setCellWidget(i, 2, cell);
+		m_table->setCellWidget(row, 2, cell);
 
 		uint32_t game_mask = def_mask;
 		if (r->tracks_override)
@@ -326,19 +366,11 @@ void GDSettingsDialog::loadData()
 			auto *track_cell = new QWidget(this);
 			auto *tcb = make_centered_checkbox(track_cell,
 							   (game_mask & (1u << (m_rec_track_nums[t] - 1))) != 0);
-			connect(tcb, &QCheckBox::toggled, this, [this, i]() {
-				auto *row_item = m_table ? m_table->item(i, 0) : nullptr;
-				if (!row_item)
-					return;
-				uint32_t cur_def = readTrackMask(m_default_track_boxes);
-				row_item->setData(kTracksOverride, readRowTrackMask(i) != cur_def);
-			});
-			m_table->setCellWidget(i, kTrackColBase + t, track_cell);
+			connect(tcb, &QCheckBox::toggled, this,
+				[this, row, t](bool checked) { onTrackCellToggled(row, kTrackColBase + t, checked); });
+			m_table->setCellWidget(row, kTrackColBase + t, track_cell);
 		}
 	}
-
-	for (auto *cb : m_default_track_boxes)
-		cb->blockSignals(false);
 
 	m_scenes->clear();
 	char **scene_names = obs_frontend_get_scene_names();
@@ -373,9 +405,9 @@ void GDSettingsDialog::saveData()
 
 	GD_ConfigSnap scratch = {};
 
-	scratch.default_tracks = gd_tracks_sanitize_mask(readTrackMask(m_default_track_boxes), m_rec_track_mask);
+	scratch.default_tracks = gd_tracks_sanitize_mask(readRowTrackMask(0), m_rec_track_mask);
 
-	for (int i = 0; i < m_table->rowCount() && scratch.game_count < GD_MAX_GAMES; i++) {
+	for (int i = 1; i < m_table->rowCount() && scratch.game_count < GD_MAX_GAMES; i++) {
 		GD_ConfigRecord r = {};
 		QString idhex = m_table->item(i, 0)->data(Qt::UserRole).toString();
 		if (!gd_game_id_from_hex(idhex.toUtf8().constData(), &r.id))
@@ -437,7 +469,7 @@ void GDSettingsDialog::saveData()
 void GDSettingsDialog::onRemoveGame()
 {
 	int row = m_table->currentRow();
-	if (row < 0)
+	if (row <= 0) // row 0 is the Default row
 		return;
 	m_table->removeRow(row);
 }

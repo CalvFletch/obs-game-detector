@@ -140,6 +140,9 @@ typedef struct {
 	int obs_processor_depth;
 	void (*schedule_processor)(void);
 	void (*post_event)(const GD_Event *evt);
+	/* Scene item IDs for the "Game Audio" group item in each target scene.
+	 * Index corresponds to config.scenes[]. 0 means not yet placed. */
+	int64_t grp_item_ids[GD_MAX_SCENES];
 } GD_State;
 
 static inline const GD_ConfigSnap *gd_config_of(const GD_State *state)
