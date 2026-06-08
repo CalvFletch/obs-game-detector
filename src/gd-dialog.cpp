@@ -18,11 +18,15 @@
 #include <QTableWidgetItem>
 #include <QListWidget>
 #include <QMainWindow>
+#include <QMenu>
+#include <QAction>
+
 #include <cstring>
 
 static const int kDirDiscovered = Qt::UserRole + 1;
 static const int kTracksOverride = Qt::UserRole + 2;
 static const int kLastSeenRaw = Qt::UserRole + 3;
+static const int kGameDisabled = Qt::UserRole + 4;
 static const int kTrackColBase = 3;
 
 static QString format_last_seen(const char *iso)
@@ -94,11 +98,10 @@ GDSettingsDialog::GDSettingsDialog(QWidget *parent) : QDialog(parent)
 	games_lay->addWidget(m_table, 1);
 
 	auto *game_btns = new QHBoxLayout();
-	auto *rem_game_btn = new QPushButton("Remove", games_page);
 	game_btns->addStretch();
-	game_btns->addWidget(rem_game_btn);
 	games_lay->addLayout(game_btns);
 
+	m_table->setContextMenuPolicy(Qt::CustomContextMenu);
 	rebuildTrackColumns();
 
 	m_tabs->addTab(games_page, "Known Games");
@@ -145,7 +148,7 @@ GDSettingsDialog::GDSettingsDialog(QWidget *parent) : QDialog(parent)
 		new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel | QDialogButtonBox::Apply, this);
 	root->addWidget(btns);
 
-	connect(rem_game_btn, &QPushButton::clicked, this, &GDSettingsDialog::onRemoveGame);
+	connect(m_table, &QTableWidget::customContextMenuRequested, this, &GDSettingsDialog::onGameContextMenu);
 	connect(add_btn, &QPushButton::clicked, this, &GDSettingsDialog::onAddDir);
 	connect(rem_dir_btn, &QPushButton::clicked, this, &GDSettingsDialog::onRemoveDir);
 	connect(rst_btn, &QPushButton::clicked, this, &GDSettingsDialog::onRestoreDefaults);
@@ -351,6 +354,7 @@ void GDSettingsDialog::loadData()
 		gd_game_id_to_hex(r->id, idhex, sizeof(idhex));
 		m_table->item(row, 0)->setData(Qt::UserRole, QString::fromUtf8(idhex));
 		m_table->item(row, 0)->setData(kTracksOverride, r->tracks_override);
+		m_table->item(row, 0)->setData(kGameDisabled, r->hidden);
 
 		auto *cell = new QWidget(this);
 		make_centered_checkbox(cell, r->enabled);
@@ -367,6 +371,13 @@ void GDSettingsDialog::loadData()
 			connect(tcb, &QCheckBox::toggled, this,
 				[this, row, t](bool checked) { onTrackCellToggled(row, kTrackColBase + t, checked); });
 			m_table->setCellWidget(row, kTrackColBase + t, track_cell);
+		}
+
+		if (r->hidden) {
+			m_table->item(row, 0)->setForeground(Qt::gray);
+			m_table->item(row, 1)->setForeground(Qt::gray);
+			if (!m_showDisabled)
+				m_table->setRowHidden(row, true);
 		}
 	}
 
@@ -421,6 +432,7 @@ void GDSettingsDialog::saveData()
 		auto *cell = m_table->cellWidget(i, 2);
 		auto *chk = cell ? cell->findChild<QCheckBox *>() : nullptr;
 		r.enabled = chk ? chk->isChecked() : true;
+		r.hidden = m_table->item(i, 0)->data(kGameDisabled).toBool();
 
 		r.tracks = gd_tracks_sanitize_mask(readRowTrackMask(i), m_rec_track_mask);
 		r.tracks_override = m_table->item(i, 0)->data(kTracksOverride).toBool();
@@ -455,7 +467,7 @@ void GDSettingsDialog::saveData()
 	gd_config_apply(state, &scratch);
 
 	for (int i = 0; i < state->config.game_count; i++) {
-		if (!state->config.games[i].enabled)
+		if (!state->config.games[i].enabled || state->config.games[i].hidden)
 			gd_request_remove_source_by_id(state->config.games[i].id);
 	}
 
@@ -463,12 +475,70 @@ void GDSettingsDialog::saveData()
 	gd_request_sync_scenes();
 }
 
-void GDSettingsDialog::onRemoveGame()
+void GDSettingsDialog::onGameContextMenu(const QPoint &pos)
 {
-	int row = m_table->currentRow();
-	if (row <= 0) // row 0 is the Default row
-		return;
-	m_table->removeRow(row);
+	QMenu menu(this);
+	int row = m_table->rowAt(pos.y());
+
+	if (row > 0) { /* skip Default row */
+		bool disabled = m_table->item(row, 0)->data(kGameDisabled).toBool();
+		if (disabled) {
+			auto *enable_act = menu.addAction("Enable");
+			connect(enable_act, &QAction::triggered, this, [this, row]() {
+				QColor normal = m_table->palette().color(QPalette::Text);
+				m_table->item(row, 0)->setForeground(normal);
+				m_table->item(row, 1)->setForeground(normal);
+				m_table->item(row, 0)->setData(kGameDisabled, false);
+			});
+		} else {
+			auto *disable_act = menu.addAction("Disable");
+			connect(disable_act, &QAction::triggered, this, [this, row]() {
+				m_table->item(row, 0)->setForeground(Qt::gray);
+				m_table->item(row, 1)->setForeground(Qt::gray);
+				m_table->item(row, 0)->setData(kGameDisabled, true);
+				if (!m_showDisabled)
+					m_table->setRowHidden(row, true);
+			});
+		}
+		menu.addSeparator();
+	}
+
+	/* Check if any games are disabled. */
+	bool any_disabled = false;
+	for (int i = 1; i < m_table->rowCount(); i++) {
+		if (m_table->item(i, 0) && m_table->item(i, 0)->data(kGameDisabled).toBool()) {
+			any_disabled = true;
+			break;
+		}
+	}
+
+	if (any_disabled) {
+		auto *toggle_act = menu.addAction(m_showDisabled ? "Hide Disabled" : "Show Disabled");
+		connect(toggle_act, &QAction::triggered, this, [this]() {
+			m_showDisabled = !m_showDisabled;
+			for (int i = 1; i < m_table->rowCount(); i++) {
+				if (!m_table->item(i, 0))
+					continue;
+				if (m_table->item(i, 0)->data(kGameDisabled).toBool())
+					m_table->setRowHidden(i, !m_showDisabled);
+			}
+		});
+		auto *enable_all = menu.addAction("Enable All");
+		connect(enable_all, &QAction::triggered, this, [this]() {
+			QColor normal = m_table->palette().color(QPalette::Text);
+			for (int i = 1; i < m_table->rowCount(); i++) {
+				if (!m_table->item(i, 0) || !m_table->item(i, 0)->data(kGameDisabled).toBool())
+					continue;
+				m_table->item(i, 0)->setForeground(normal);
+				m_table->item(i, 1)->setForeground(normal);
+				m_table->item(i, 0)->setData(kGameDisabled, false);
+				m_table->setRowHidden(i, false);
+			}
+		});
+	}
+
+	if (!menu.isEmpty())
+		menu.exec(m_table->viewport()->mapToGlobal(pos));
 }
 
 void GDSettingsDialog::onAddDir()

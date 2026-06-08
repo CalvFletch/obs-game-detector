@@ -1176,6 +1176,8 @@ static void save_json(const GD_ConfigSnap *snap) {
 		obs_data_set_string(item, "display_name", r->display_name);
 		obs_data_set_string(item, "last_seen", r->last_seen);
 		obs_data_set_bool(item, "enabled", r->enabled);
+		if (r->hidden)
+			obs_data_set_bool(item, "hidden", true);
 		if (r->tracks_override) {
 			obs_data_set_int(item, "tracks", (int)r->tracks);
 			obs_data_set_bool(item, "tracks_override", true);
@@ -1265,6 +1267,9 @@ static void load_json(GD_ConfigSnap *snap, const char *path,
 			r->enabled = obs_data_has_user_value(item, "enabled")
 			                 ? obs_data_get_bool(item, "enabled")
 			                 : true;
+			r->hidden = obs_data_has_user_value(item, "hidden")
+			                ? obs_data_get_bool(item, "hidden")
+			                : false;
 			if (obs_data_has_user_value(item, "tracks_override") &&
 			    obs_data_get_bool(item, "tracks_override")) {
 				r->tracks_override = true;
@@ -1384,7 +1389,7 @@ const GD_ConfigRecord *gd_config_find(const GD_ConfigSnap *cfg, GD_GameId id) {
 
 bool gd_config_is_enabled(const GD_ConfigSnap *cfg, GD_GameId id) {
 	const GD_ConfigRecord *r = gd_config_find(cfg, id);
-	return r && r->enabled;
+	return r && r->enabled && !r->hidden;
 }
 
 void gd_config_record_game(GD_State *state, GD_GameId id,

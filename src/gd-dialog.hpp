@@ -14,7 +14,7 @@ public:
 	explicit GDSettingsDialog(QWidget *parent = nullptr);
 
 private slots:
-	void onRemoveGame();
+	void onGameContextMenu(const QPoint &pos);
 	void onAddDir();
 	void onRemoveDir();
 	void onRestoreDefaults();
@@ -35,6 +35,7 @@ private:
 	QTableWidget *m_table;
 	QListWidget *m_dirs;
 	QListWidget *m_scenes;
+	bool m_showDisabled = false;
 	int m_rec_track_nums[6];
 	int m_rec_track_count;
 	uint32_t m_rec_track_mask;

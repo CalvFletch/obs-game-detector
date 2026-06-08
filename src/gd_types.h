@@ -68,6 +68,7 @@ typedef struct {
 	bool enabled;
 	uint32_t tracks;
 	bool tracks_override;
+	bool hidden; /* hidden from dialog table; still stored in config */
 } GD_ConfigRecord;
 
 typedef struct GD_ConfigSnap {
