@@ -83,10 +83,13 @@ GDSettingsDialog::GDSettingsDialog(QWidget *parent) : QDialog(parent)
 	auto *games_page = new QWidget;
 	auto *games_lay = new QVBoxLayout(games_page);
 
-	auto *hint = new QLabel("Uncheck a game to stop OBS creating an audio source for it. "
-				"Right-click a game to Disable or Enable it. "
-				"Audio tracks follow OBS recording output settings.",
-				games_page);
+	auto *hint = new QLabel(
+		"Capture: uncheck to stop recording audio for a game without removing it from the list. "
+		"Disable: right-click \u2192 Disable to grey out a game and stop capture; Enable to restore. "
+		"Tracks: tick boxes select which recording tracks carry audio for each game. "
+		"The Default row sets the baseline \u2014 game rows with no override inherit it. "
+		"All changes apply immediately.",
+		games_page);
 	hint->setWordWrap(true);
 	games_lay->addWidget(hint);
 
@@ -109,9 +112,12 @@ GDSettingsDialog::GDSettingsDialog(QWidget *parent) : QDialog(parent)
 	auto *dirs_page = new QWidget;
 	auto *dirs_lay = new QVBoxLayout(dirs_page);
 
-	auto *dirs_hint = new QLabel("Game libraries are discovered automatically from Steam/Epic/GOG/Ubisoft scans. "
-				     "Add custom directories only for installs outside those libraries.",
-				     dirs_page);
+	auto *dirs_hint = new QLabel(
+		"Steam, Epic, GOG, and Ubisoft libraries are discovered automatically (shown greyed out). "
+		"Use Add Directory for games installed outside those libraries, e.g. a standalone folder on another drive. "
+		"Remove deletes a custom entry; Restore Defaults clears all custom entries. "
+		"Refresh Game Libraries rescans launchers after installing a new game.",
+		dirs_page);
 	dirs_hint->setWordWrap(true);
 	dirs_lay->addWidget(dirs_hint);
 
@@ -135,7 +141,11 @@ GDSettingsDialog::GDSettingsDialog(QWidget *parent) : QDialog(parent)
 	auto *scenes_page = new QWidget;
 	auto *scenes_lay = new QVBoxLayout(scenes_page);
 
-	auto *scenes_hint = new QLabel("Check the scenes that should receive the Game Audio group.", scenes_page);
+	auto *scenes_hint = new QLabel(
+		"Check every scene that should contain the Game Audio group. "
+		"The group is added automatically when a game is detected and removed when you uncheck a scene. "
+		"Changes apply immediately.",
+		scenes_page);
 	scenes_hint->setWordWrap(true);
 	scenes_lay->addWidget(scenes_hint);
 
