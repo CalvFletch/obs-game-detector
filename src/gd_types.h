@@ -26,7 +26,6 @@ typedef uint64_t GD_GameId;
 typedef enum {
 	GD_GAME_DETECTED,
 	GD_GAME_CAPTURING,
-	GD_GAME_STOPPING,
 } GD_GameState;
 
 typedef struct {
@@ -96,7 +95,6 @@ typedef enum {
 	GD_EVT_INDEX_READY,
 	GD_EVT_SYNC_SCENES,
 	GD_EVT_REMOVE_BY_ID,
-	GD_EVT_ADD_BY_ID,
 	GD_EVT_APPLY_TRACKS,
 	GD_EVT_PLACE_AUDIO,
 } GD_EventKind;

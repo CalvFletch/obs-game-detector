@@ -66,7 +66,6 @@ bool gd_install_index_cache_path(char *out, size_t cap);
 
 // engine (dialog) obs mutations are queued, run on processor_tick
 void gd_request_remove_source_by_id(GD_GameId id);
-void gd_request_add_source_if_running_by_id(GD_GameId id);
 void gd_request_index_rebuild(void);
 void gd_request_apply_audio_tracks(void);
 void gd_request_sync_scenes(void);

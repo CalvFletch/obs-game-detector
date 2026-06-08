@@ -84,7 +84,7 @@ GDSettingsDialog::GDSettingsDialog(QWidget *parent) : QDialog(parent)
 	auto *games_lay = new QVBoxLayout(games_page);
 
 	auto *hint = new QLabel("Uncheck a game to stop OBS creating an audio source for it. "
-				"Remove forgets it from this list; it reappears if detected again. "
+				"Right-click a game to Disable or Enable it. "
 				"Audio tracks follow OBS recording output settings.",
 				games_page);
 	hint->setWordWrap(true);

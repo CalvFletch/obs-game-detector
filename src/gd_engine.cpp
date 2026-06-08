@@ -386,9 +386,6 @@ static void handle_event(GD_State *state, const GD_Event *evt)
 	case GD_EVT_REMOVE_BY_ID:
 		handle_remove_by_id(state, evt->game_id);
 		break;
-	case GD_EVT_ADD_BY_ID:
-		handle_add_by_id(state, evt->game_id);
-		break;
 	case GD_EVT_APPLY_TRACKS:
 		apply_audio_tracks(state);
 		break;
@@ -1250,7 +1247,7 @@ static void handle_place_audio(GD_State *state, GD_GameId id)
 		return;
 
 	GD_TrackedGame *g = tracker_find(&state->tracker, id, 0, TRACK_BY_GAME_ID);
-	if (!g || g->state == GD_GAME_STOPPING)
+	if (!g)
 		return;
 
 	place_audio(state, g, false);
@@ -1439,7 +1436,6 @@ typedef struct {
 } gd_by_id_ctx;
 
 static void request_remove_cb(GD_TrackedGame *g, void *vp);
-static void request_add_cb(GD_TrackedGame *g, void *vp);
 
 static void handle_remove_by_id(GD_State *state, GD_GameId id)
 {
@@ -1448,22 +1444,10 @@ static void handle_remove_by_id(GD_State *state, GD_GameId id)
 	remove_all_captures_for_id(id);
 }
 
-static void handle_add_by_id(GD_State *state, GD_GameId id)
-{
-	gd_by_id_ctx ctx = {state, id};
-	tracker_foreach_by_id(&state->tracker, id, request_add_cb, &ctx);
-}
-
 static void request_remove_cb(GD_TrackedGame *g, void *vp)
 {
 	auto *ctx = (gd_by_id_ctx *)vp;
 	remove_audio(ctx->state, g);
-}
-
-static void request_add_cb(GD_TrackedGame *g, void *vp)
-{
-	auto *ctx = (gd_by_id_ctx *)vp;
-	place_audio(ctx->state, g, false);
 }
 
 // exported api
@@ -1590,11 +1574,6 @@ static void request_event(GD_EventKind kind, GD_GameId game_id)
 void gd_request_remove_source_by_id(GD_GameId id)
 {
 	request_event(GD_EVT_REMOVE_BY_ID, id);
-}
-
-void gd_request_add_source_if_running_by_id(GD_GameId id)
-{
-	request_event(GD_EVT_ADD_BY_ID, id);
 }
 
 void gd_request_index_rebuild(void)
