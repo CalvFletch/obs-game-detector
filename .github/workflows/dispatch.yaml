@@ -1,5 +1,5 @@
-name: Dispatch
-run-name: Dispatched Repository Actions - ${{ inputs.job }} ⌛️
+﻿name: Dispatch
+run-name: Dispatched Repository Actions - ${{ inputs.job }}
 on:
   workflow_dispatch:
     inputs:

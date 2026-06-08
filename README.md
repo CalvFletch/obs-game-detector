@@ -9,7 +9,7 @@ Automatically adds per game audio capture to OBS when you launch a game based on
 
 ## Install
 
-1. Download the latest **windows-x64** `.zip` from [Releases](https://github.com/CIsaa/obs-game-detector/releases).
+1. Download the latest **windows-x64** `.zip` from [Releases](https://github.com/CalvFletch/obs-game-detector/releases).
 2. Extract the archive.
 3. Copy the `obs-game-detector` folder into:
 

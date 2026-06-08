@@ -22,12 +22,13 @@
 
 #include <cstring>
 
-static const int kDirDiscovered  = Qt::UserRole + 1;
+static const int kDirDiscovered = Qt::UserRole + 1;
 static const int kTracksOverride = Qt::UserRole + 2;
-static const int kLastSeenRaw    = Qt::UserRole + 3;
-static const int kTrackColBase   = 3;
+static const int kLastSeenRaw = Qt::UserRole + 3;
+static const int kTrackColBase = 3;
 
-static QString format_last_seen(const char *iso) {
+static QString format_last_seen(const char *iso)
+{
 	if (!iso || !iso[0])
 		return "Never";
 	QDate seen = QDate::fromString(QString::fromUtf8(iso), "yyyy-MM-dd");
@@ -42,33 +43,30 @@ static QString format_last_seen(const char *iso) {
 		return QString("%1 days ago").arg(days);
 	if (days < 30) {
 		int weeks = days / 7;
-		return weeks == 1 ? "1 week ago"
-		                  : QString("%1 weeks ago").arg(weeks);
+		return weeks == 1 ? "1 week ago" : QString("%1 weeks ago").arg(weeks);
 	}
 	if (days < 365) {
 		int months = days / 30;
-		return months == 1 ? "1 month ago"
-		                   : QString("%1 months ago").arg(months);
+		return months == 1 ? "1 month ago" : QString("%1 months ago").arg(months);
 	}
 	int years = days / 365;
-	return years == 1 ? "1 year ago"
-	                  : QString("%1 years ago").arg(years);
+	return years == 1 ? "1 year ago" : QString("%1 years ago").arg(years);
 }
 
-static void list_discovered_dirs(QListWidget *list, const GD_InstallIndex *idx) {
+static void list_discovered_dirs(QListWidget *list, const GD_InstallIndex *idx)
+{
 	char dirs[GD_MAX_LOOKUP_DIRS][GD_MAX_PATH];
-	int  n = 0;
+	int n = 0;
 	gd_lookup_default_dirs(idx, dirs, &n, GD_MAX_LOOKUP_DIRS);
 	for (int i = 0; i < n; i++) {
-		auto *it = new QListWidgetItem(
-			QString::fromUtf8(dirs[i]), list);
+		auto *it = new QListWidgetItem(QString::fromUtf8(dirs[i]), list);
 		it->setData(kDirDiscovered, true);
 		it->setFlags(Qt::ItemIsEnabled);
 	}
 }
 
-GDSettingsDialog::GDSettingsDialog(QWidget *parent)
-	: QDialog(parent) {
+GDSettingsDialog::GDSettingsDialog(QWidget *parent) : QDialog(parent)
+{
 	setWindowTitle("Game Detector Settings");
 	setMinimumWidth(760);
 	setMinimumHeight(420);
@@ -81,13 +79,12 @@ GDSettingsDialog::GDSettingsDialog(QWidget *parent)
 	root->addWidget(m_tabs, 1);
 
 	auto *games_page = new QWidget;
-	auto *games_lay  = new QVBoxLayout(games_page);
+	auto *games_lay = new QVBoxLayout(games_page);
 
-	auto *hint = new QLabel(
-		"Uncheck a game to stop OBS creating an audio source for it. "
-		"Remove forgets it from this list; it reappears if detected again. "
-		"Audio tracks follow OBS recording output settings.",
-		games_page);
+	auto *hint = new QLabel("Uncheck a game to stop OBS creating an audio source for it. "
+				"Remove forgets it from this list; it reappears if detected again. "
+				"Audio tracks follow OBS recording output settings.",
+				games_page);
 	hint->setWordWrap(true);
 	games_lay->addWidget(hint);
 
@@ -118,12 +115,11 @@ GDSettingsDialog::GDSettingsDialog(QWidget *parent)
 	m_tabs->addTab(games_page, "Known Games");
 
 	auto *dirs_page = new QWidget;
-	auto *dirs_lay  = new QVBoxLayout(dirs_page);
+	auto *dirs_lay = new QVBoxLayout(dirs_page);
 
-	auto *dirs_hint = new QLabel(
-		"Game libraries are discovered automatically from Steam/Epic/GOG/Ubisoft scans. "
-		"Add custom directories only for installs outside those libraries.",
-		dirs_page);
+	auto *dirs_hint = new QLabel("Game libraries are discovered automatically from Steam/Epic/GOG/Ubisoft scans. "
+				     "Add custom directories only for installs outside those libraries.",
+				     dirs_page);
 	dirs_hint->setWordWrap(true);
 	dirs_lay->addWidget(dirs_hint);
 
@@ -131,10 +127,10 @@ GDSettingsDialog::GDSettingsDialog(QWidget *parent)
 	dirs_lay->addWidget(m_dirs);
 
 	auto *dir_btns = new QHBoxLayout();
-	auto *add_btn  = new QPushButton("Add Directory...", dirs_page);
-	auto *rem_btn  = new QPushButton("Remove", dirs_page);
-	auto *rst_btn  = new QPushButton("Restore Defaults", dirs_page);
-	auto *ref_btn  = new QPushButton("Refresh Game Libraries", dirs_page);
+	auto *add_btn = new QPushButton("Add Directory...", dirs_page);
+	auto *rem_btn = new QPushButton("Remove", dirs_page);
+	auto *rst_btn = new QPushButton("Restore Defaults", dirs_page);
+	auto *ref_btn = new QPushButton("Refresh Game Libraries", dirs_page);
 	dir_btns->addWidget(add_btn);
 	dir_btns->addWidget(rem_btn);
 	dir_btns->addStretch();
@@ -145,11 +141,9 @@ GDSettingsDialog::GDSettingsDialog(QWidget *parent)
 	m_tabs->addTab(dirs_page, "Lookup Directories");
 
 	auto *scenes_page = new QWidget;
-	auto *scenes_lay  = new QVBoxLayout(scenes_page);
+	auto *scenes_lay = new QVBoxLayout(scenes_page);
 
-	auto *scenes_hint = new QLabel(
-		"Check the scenes that should receive the Gaming Audio group.",
-		scenes_page);
+	auto *scenes_hint = new QLabel("Check the scenes that should receive the Game Audio group.", scenes_page);
 	scenes_hint->setWordWrap(true);
 	scenes_lay->addWidget(scenes_hint);
 
@@ -158,20 +152,16 @@ GDSettingsDialog::GDSettingsDialog(QWidget *parent)
 
 	m_tabs->addTab(scenes_page, "Target Scenes");
 
-	auto *btns = new QDialogButtonBox(
-		QDialogButtonBox::Ok | QDialogButtonBox::Cancel |
-		QDialogButtonBox::Apply,
-		this);
+	auto *btns =
+		new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel | QDialogButtonBox::Apply, this);
 	root->addWidget(btns);
 
-	connect(rem_game_btn, &QPushButton::clicked, this,
-	        &GDSettingsDialog::onRemoveGame);
+	connect(rem_game_btn, &QPushButton::clicked, this, &GDSettingsDialog::onRemoveGame);
 	connect(add_btn, &QPushButton::clicked, this, &GDSettingsDialog::onAddDir);
 	connect(rem_btn, &QPushButton::clicked, this, &GDSettingsDialog::onRemoveDir);
 	connect(rst_btn, &QPushButton::clicked, this, &GDSettingsDialog::onRestoreDefaults);
 	connect(ref_btn, &QPushButton::clicked, this, &GDSettingsDialog::onRefreshLibraries);
-	connect(btns->button(QDialogButtonBox::Apply), &QPushButton::clicked,
-	        this, &GDSettingsDialog::onApply);
+	connect(btns->button(QDialogButtonBox::Apply), &QPushButton::clicked, this, &GDSettingsDialog::onApply);
 	connect(btns, &QDialogButtonBox::accepted, this, [this]() {
 		saveData();
 		accept();
@@ -181,14 +171,14 @@ GDSettingsDialog::GDSettingsDialog(QWidget *parent)
 	loadData();
 }
 
-void GDSettingsDialog::rebuildTrackColumns() {
+void GDSettingsDialog::rebuildTrackColumns()
+{
 	GD_RecTracks rec;
 	gd_recording_tracks(&rec);
 
 	m_rec_track_count = rec.track_count;
-	m_rec_track_mask  = rec.mask;
-	memcpy(m_rec_track_nums, rec.track_nums,
-	       sizeof(int) * (size_t)m_rec_track_count);
+	m_rec_track_mask = rec.mask;
+	memcpy(m_rec_track_nums, rec.track_nums, sizeof(int) * (size_t)m_rec_track_count);
 
 	for (auto *cb : m_default_track_boxes)
 		delete cb;
@@ -200,50 +190,40 @@ void GDSettingsDialog::rebuildTrackColumns() {
 
 	QStringList headers = {"Game", "Last Seen", "Capture"};
 	for (int i = 0; i < m_rec_track_count; i++) {
-		auto *cb = new QCheckBox(
-			QString("Track %1").arg(m_rec_track_nums[i]),
-			m_default_tracks_row);
+		auto *cb = new QCheckBox(QString("Track %1").arg(m_rec_track_nums[i]), m_default_tracks_row);
 		def_lay->addWidget(cb);
 		m_default_track_boxes.push_back(cb);
 		headers << QString::number(m_rec_track_nums[i]);
-		connect(cb, &QCheckBox::toggled, this,
-		        &GDSettingsDialog::onDefaultTracksChanged);
+		connect(cb, &QCheckBox::toggled, this, &GDSettingsDialog::onDefaultTracksChanged);
 	}
 
 	m_table->setColumnCount(headers.size());
 	m_table->setHorizontalHeaderLabels(headers);
 	m_table->horizontalHeader()->setStretchLastSection(false);
-	m_table->horizontalHeader()->setSectionResizeMode(
-		0, QHeaderView::Stretch);
-	m_table->horizontalHeader()->setSectionResizeMode(
-		1, QHeaderView::ResizeToContents);
-	m_table->horizontalHeader()->setSectionResizeMode(
-		2, QHeaderView::Fixed);
+	m_table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
+	m_table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+	m_table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Fixed);
 	m_table->setColumnWidth(2, 72);
 	for (int c = kTrackColBase; c < headers.size(); c++) {
-		m_table->horizontalHeader()->setSectionResizeMode(
-			c, QHeaderView::Fixed);
+		m_table->horizontalHeader()->setSectionResizeMode(c, QHeaderView::Fixed);
 		m_table->setColumnWidth(c, 44);
-		m_table->horizontalHeaderItem(c)->setToolTip(
-			QString("Audio track %1").arg(headers[c]));
+		m_table->horizontalHeaderItem(c)->setToolTip(QString("Audio track %1").arg(headers[c]));
 	}
 }
 
-uint32_t GDSettingsDialog::readTrackMask(
-	const std::vector<QCheckBox *> &boxes) const {
+uint32_t GDSettingsDialog::readTrackMask(const std::vector<QCheckBox *> &boxes) const
+{
 	uint32_t mask = 0;
-	for (size_t i = 0; i < boxes.size() && i < (size_t)m_rec_track_count;
-	     i++) {
+	for (size_t i = 0; i < boxes.size() && i < (size_t)m_rec_track_count; i++) {
 		if (boxes[i]->isChecked())
 			mask |= (1u << (m_rec_track_nums[i] - 1));
 	}
 	return mask;
 }
 
-void GDSettingsDialog::setTrackMask(const std::vector<QCheckBox *> &boxes,
-                                    uint32_t mask) {
-	for (size_t i = 0; i < boxes.size() && i < (size_t)m_rec_track_count;
-	     i++) {
+void GDSettingsDialog::setTrackMask(const std::vector<QCheckBox *> &boxes, uint32_t mask)
+{
+	for (size_t i = 0; i < boxes.size() && i < (size_t)m_rec_track_count; i++) {
 		bool on = (mask & (1u << (m_rec_track_nums[i] - 1))) != 0;
 		boxes[i]->blockSignals(true);
 		boxes[i]->setChecked(on);
@@ -251,7 +231,8 @@ void GDSettingsDialog::setTrackMask(const std::vector<QCheckBox *> &boxes,
 	}
 }
 
-static QCheckBox *make_centered_checkbox(QWidget *parent, bool checked) {
+static QCheckBox *make_centered_checkbox(QWidget *parent, bool checked)
+{
 	auto *lay = new QHBoxLayout(parent);
 	auto *chk = new QCheckBox(parent);
 	chk->setChecked(checked);
@@ -261,8 +242,8 @@ static QCheckBox *make_centered_checkbox(QWidget *parent, bool checked) {
 	return chk;
 }
 
-static std::vector<QCheckBox *> track_boxes_for_row(QTableWidget *table,
-                                                    int row, int track_count) {
+static std::vector<QCheckBox *> track_boxes_for_row(QTableWidget *table, int row, int track_count)
+{
 	std::vector<QCheckBox *> boxes;
 	for (int t = 0; t < track_count; t++) {
 		auto *cell = table->cellWidget(row, kTrackColBase + t);
@@ -274,12 +255,13 @@ static std::vector<QCheckBox *> track_boxes_for_row(QTableWidget *table,
 	return boxes;
 }
 
-uint32_t GDSettingsDialog::readRowTrackMask(int row) const {
-	return readTrackMask(
-		track_boxes_for_row(m_table, row, m_rec_track_count));
+uint32_t GDSettingsDialog::readRowTrackMask(int row) const
+{
+	return readTrackMask(track_boxes_for_row(m_table, row, m_rec_track_count));
 }
 
-void GDSettingsDialog::syncInheritedTrackRows() {
+void GDSettingsDialog::syncInheritedTrackRows()
+{
 	if (!m_table)
 		return;
 	uint32_t def_mask = readTrackMask(m_default_track_boxes);
@@ -287,16 +269,17 @@ void GDSettingsDialog::syncInheritedTrackRows() {
 		auto *item = m_table->item(row, 0);
 		if (!item || item->data(kTracksOverride).toBool())
 			continue;
-		setTrackMask(track_boxes_for_row(m_table, row, m_rec_track_count),
-		             def_mask);
+		setTrackMask(track_boxes_for_row(m_table, row, m_rec_track_count), def_mask);
 	}
 }
 
-void GDSettingsDialog::onDefaultTracksChanged() {
+void GDSettingsDialog::onDefaultTracksChanged()
+{
 	syncInheritedTrackRows();
 }
 
-void GDSettingsDialog::loadData() {
+void GDSettingsDialog::loadData()
+{
 	GD_State *state = gd_state();
 	if (state->phase == GD_PHASE_IDLE)
 		return;
@@ -314,8 +297,7 @@ void GDSettingsDialog::loadData() {
 	m_table->setRowCount(snap->game_count);
 	for (int i = 0; i < snap->game_count; i++) {
 		const GD_ConfigRecord *r = &snap->games[i];
-		const char *label =
-			gd_index_display_name(idx, r->id);
+		const char *label = gd_index_display_name(idx, r->id);
 		if (!label || !label[0])
 			label = r->display_name;
 		auto *name_item = new QTableWidgetItem(QString::fromUtf8(label));
@@ -342,16 +324,14 @@ void GDSettingsDialog::loadData() {
 
 		for (int t = 0; t < m_rec_track_count; t++) {
 			auto *track_cell = new QWidget(this);
-			auto *tcb = make_centered_checkbox(
-				track_cell,
-				(game_mask & (1u << (m_rec_track_nums[t] - 1))) != 0);
+			auto *tcb = make_centered_checkbox(track_cell,
+							   (game_mask & (1u << (m_rec_track_nums[t] - 1))) != 0);
 			connect(tcb, &QCheckBox::toggled, this, [this, i]() {
 				auto *row_item = m_table ? m_table->item(i, 0) : nullptr;
 				if (!row_item)
 					return;
 				uint32_t cur_def = readTrackMask(m_default_track_boxes);
-				row_item->setData(kTracksOverride,
-				                  readRowTrackMask(i) != cur_def);
+				row_item->setData(kTracksOverride, readRowTrackMask(i) != cur_def);
 			});
 			m_table->setCellWidget(i, kTrackColBase + t, track_cell);
 		}
@@ -364,8 +344,7 @@ void GDSettingsDialog::loadData() {
 	char **scene_names = obs_frontend_get_scene_names();
 	if (scene_names) {
 		for (int i = 0; scene_names[i]; i++) {
-			auto *it = new QListWidgetItem(
-				QString::fromUtf8(scene_names[i]), m_scenes);
+			auto *it = new QListWidgetItem(QString::fromUtf8(scene_names[i]), m_scenes);
 			it->setFlags(it->flags() | Qt::ItemIsUserCheckable);
 			bool checked = false;
 			for (int j = 0; j < snap->scene_count; j++)
@@ -381,49 +360,40 @@ void GDSettingsDialog::loadData() {
 	m_dirs->clear();
 	list_discovered_dirs(m_dirs, idx);
 	for (int i = 0; i < snap->custom_dir_count; i++) {
-		auto *it = new QListWidgetItem(
-			QString::fromUtf8(snap->custom_dirs[i]), m_dirs);
+		auto *it = new QListWidgetItem(QString::fromUtf8(snap->custom_dirs[i]), m_dirs);
 		it->setData(kDirDiscovered, false);
 	}
 }
 
-void GDSettingsDialog::saveData() {
+void GDSettingsDialog::saveData()
+{
 	GD_State *state = gd_state();
 	if (state->phase == GD_PHASE_IDLE)
 		return;
 
 	GD_ConfigSnap scratch = {};
 
-	scratch.default_tracks =
-		gd_tracks_sanitize_mask(readTrackMask(m_default_track_boxes),
-		                        m_rec_track_mask);
+	scratch.default_tracks = gd_tracks_sanitize_mask(readTrackMask(m_default_track_boxes), m_rec_track_mask);
 
-	for (int i = 0; i < m_table->rowCount() && scratch.game_count < GD_MAX_GAMES;
-	     i++) {
+	for (int i = 0; i < m_table->rowCount() && scratch.game_count < GD_MAX_GAMES; i++) {
 		GD_ConfigRecord r = {};
 		QString idhex = m_table->item(i, 0)->data(Qt::UserRole).toString();
 		if (!gd_game_id_from_hex(idhex.toUtf8().constData(), &r.id))
 			continue;
-		strncpy(r.display_name, m_table->item(i, 0)->text().toUtf8().constData(),
-		        sizeof(r.display_name) - 1);
+		strncpy(r.display_name, m_table->item(i, 0)->text().toUtf8().constData(), sizeof(r.display_name) - 1);
 		{
 			auto *seen_item = m_table->item(i, 1);
-			QString raw = seen_item
-				? seen_item->data(kLastSeenRaw).toString()
-				: QString();
+			QString raw = seen_item ? seen_item->data(kLastSeenRaw).toString() : QString();
 			if (raw.isEmpty() && seen_item)
 				raw = seen_item->text();
-			strncpy(r.last_seen, raw.toUtf8().constData(),
-			        sizeof(r.last_seen) - 1);
+			strncpy(r.last_seen, raw.toUtf8().constData(), sizeof(r.last_seen) - 1);
 		}
 		auto *cell = m_table->cellWidget(i, 2);
-		auto *chk  = cell ? cell->findChild<QCheckBox *>() : nullptr;
+		auto *chk = cell ? cell->findChild<QCheckBox *>() : nullptr;
 		r.enabled = chk ? chk->isChecked() : true;
 
-		r.tracks = gd_tracks_sanitize_mask(readRowTrackMask(i),
-		                                   m_rec_track_mask);
-		r.tracks_override =
-			m_table->item(i, 0)->data(kTracksOverride).toBool();
+		r.tracks = gd_tracks_sanitize_mask(readRowTrackMask(i), m_rec_track_mask);
+		r.tracks_override = m_table->item(i, 0)->data(kTracksOverride).toBool();
 		if (r.tracks_override && r.tracks == scratch.default_tracks)
 			r.tracks_override = false;
 
@@ -435,17 +405,14 @@ void GDSettingsDialog::saveData() {
 		if (it->data(kDirDiscovered).toBool())
 			continue;
 
-		gd_dir_add_unique(scratch.custom_dirs, &scratch.custom_dir_count,
-		                    GD_MAX_LOOKUP_DIRS,
-		                    it->text().toUtf8().constData());
+		gd_dir_add_unique(scratch.custom_dirs, &scratch.custom_dir_count, GD_MAX_LOOKUP_DIRS,
+				  it->text().toUtf8().constData());
 	}
 
-	for (int i = 0; i < m_scenes->count() && scratch.scene_count < GD_MAX_SCENES;
-	     i++) {
+	for (int i = 0; i < m_scenes->count() && scratch.scene_count < GD_MAX_SCENES; i++) {
 		if (m_scenes->item(i)->checkState() == Qt::Checked) {
-			strncpy(scratch.scenes[scratch.scene_count],
-			        m_scenes->item(i)->text().toUtf8().constData(),
-			        GD_MAX_SCENE_LEN - 1);
+			strncpy(scratch.scenes[scratch.scene_count], m_scenes->item(i)->text().toUtf8().constData(),
+				GD_MAX_SCENE_LEN - 1);
 			scratch.scene_count++;
 		}
 	}
@@ -467,45 +434,51 @@ void GDSettingsDialog::saveData() {
 	gd_request_sync_scenes();
 }
 
-void GDSettingsDialog::onRemoveGame() {
+void GDSettingsDialog::onRemoveGame()
+{
 	int row = m_table->currentRow();
 	if (row < 0)
 		return;
 	m_table->removeRow(row);
 }
 
-void GDSettingsDialog::onAddDir() {
-	QString dir = QFileDialog::getExistingDirectory(
-		this, "Select Game Directory", {},
-		QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks);
+void GDSettingsDialog::onAddDir()
+{
+	QString dir = QFileDialog::getExistingDirectory(this, "Select Game Directory", {},
+							QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks);
 	if (!dir.isEmpty()) {
 		auto *it = new QListWidgetItem(dir, m_dirs);
 		it->setData(kDirDiscovered, false);
 	}
 }
 
-void GDSettingsDialog::onRemoveDir() {
+void GDSettingsDialog::onRemoveDir()
+{
 	auto *it = m_dirs->currentItem();
 	if (!it || it->data(kDirDiscovered).toBool())
 		return;
 	delete it;
 }
 
-void GDSettingsDialog::onRestoreDefaults() {
+void GDSettingsDialog::onRestoreDefaults()
+{
 	m_dirs->clear();
 	list_discovered_dirs(m_dirs, &gd_state()->index);
 }
 
-void GDSettingsDialog::onRefreshLibraries() {
+void GDSettingsDialog::onRefreshLibraries()
+{
 	gd_request_index_rebuild();
 }
 
-void GDSettingsDialog::onApply() {
+void GDSettingsDialog::onApply()
+{
 	saveData();
 }
 
-extern "C" void gd_open_dialog(void) {
-	auto *mw  = (QMainWindow *)obs_frontend_get_main_window();
+extern "C" void gd_open_dialog(void)
+{
+	auto *mw = (QMainWindow *)obs_frontend_get_main_window();
 	auto *dlg = new GDSettingsDialog(mw);
 	dlg->setAttribute(Qt::WA_DeleteOnClose);
 	dlg->exec();
