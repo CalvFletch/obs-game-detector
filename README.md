@@ -1,6 +1,6 @@
 # OBS Game Detector
 
-Automatically adds per game audio capture to OBS when you launch a game based on library locations.
+Automatically creates a **Game Audio** capture source in OBS when you launch a game, placed in a locked group inside the scenes you choose.
 
 ## Requirements
 
@@ -18,25 +18,34 @@ Automatically adds per game audio capture to OBS when you launch a game based on
 
 ## Setup
 
-Open **Tools -> Game Detector Settings** in OBS.
+Open **Tools → Game Detector Settings** in OBS.
 
 ### Known Games
 
-Every game the plugin has seen is listed here.
+Every game the plugin has detected is listed here. All changes apply immediately — no Apply button needed.
 
-- Uncheck a game to stop OBS from creating an audio source for it.
-- **Remove** drops a game from the list. It will come back if detected again.
-- Set default audio tracks, or override tracks per game. Track options match your OBS **Settings -> Output -> Recording** track setup.
+- **Capture checkbox** — uncheck to stop OBS creating an audio source for that game.
+- **Audio track columns** — override which recording tracks carry a game's audio. Track columns match your OBS **Settings → Output → Recording** setup. The **Default** row sets the baseline for all games.
+- **Right-click a game row:**
+  - **Disable** — grays out the game and stops audio capture. The row stays in the list.
+  - **Enable** — re-enables a disabled game, restoring its previous capture state.
+  - **Show Disabled / Hide Disabled** — toggles visibility of grayed-out rows.
+  - **Enable All** — re-enables every disabled game at once.
 
 ### Lookup Directories
 
-The plugin finds games by matching running processes to install folders. Steam, Epic, GOG, and Ubisoft libraries are discovered automatically.
-
-Use **Add Directory** only for games installed outside those libraries (for example, a standalone folder on another drive). **Refresh Game Libraries** rescans your launchers if you installed a game recently.
+Steam, Epic, GOG, and Ubisoft libraries are discovered automatically. Use **Add Directory** only for games installed outside those libraries. **Refresh Game Libraries** rescans your launchers after a new install. **Remove** deletes a custom directory entry; **Restore Defaults** resets to auto-discovered paths only.
 
 ### Target Scenes
 
-Choose which OBS scenes receive the **Game Audio** group. Only checked scenes are updated.
+Check the OBS scenes that should receive the **Game Audio** group. Changes apply immediately.
+
+## How it works
+
+When a game process is detected the plugin:
+1. Creates a **Game Capture** audio source named after the game.
+2. Places it inside a locked **Game Audio** group in every checked scene.
+3. Removes the source when the game exits.
 
 ## Troubleshooting
 
@@ -48,7 +57,7 @@ Choose which OBS scenes receive the **Game Audio** group. Only checked scenes ar
 
 **Audio source was created for the wrong process**
 
-- Some launchers spawn helper processes before the real game. The plugin filters common launcher and anti-cheat processes; if something still slips through, disable that entry under **Known Games**.
+- Some launchers spawn helper processes before the real game. The plugin filters common launcher and anti-cheat processes. If something still slips through, right-click it under **Known Games** and choose **Disable**.
 
 ## Building from source
 
