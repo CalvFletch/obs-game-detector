@@ -18,13 +18,15 @@
 #include <QTableWidgetItem>
 #include <QListWidget>
 #include <QMainWindow>
-#include <QDate>
+#include <QMenu>
+#include <QAction>
 
 #include <cstring>
 
 static const int kDirDiscovered = Qt::UserRole + 1;
 static const int kTracksOverride = Qt::UserRole + 2;
 static const int kLastSeenRaw = Qt::UserRole + 3;
+static const int kDirHidden = Qt::UserRole + 4;
 static const int kTrackColBase = 3;
 
 static QString format_last_seen(const char *iso)
@@ -115,15 +117,14 @@ GDSettingsDialog::GDSettingsDialog(QWidget *parent) : QDialog(parent)
 	dirs_lay->addWidget(dirs_hint);
 
 	m_dirs = new QListWidget(dirs_page);
+	m_dirs->setContextMenuPolicy(Qt::CustomContextMenu);
 	dirs_lay->addWidget(m_dirs);
 
 	auto *dir_btns = new QHBoxLayout();
 	auto *add_btn = new QPushButton("Add Directory...", dirs_page);
-	auto *rem_btn = new QPushButton("Remove", dirs_page);
 	auto *rst_btn = new QPushButton("Restore Defaults", dirs_page);
 	auto *ref_btn = new QPushButton("Refresh Game Libraries", dirs_page);
 	dir_btns->addWidget(add_btn);
-	dir_btns->addWidget(rem_btn);
 	dir_btns->addStretch();
 	dir_btns->addWidget(rst_btn);
 	dir_btns->addWidget(ref_btn);
@@ -149,7 +150,7 @@ GDSettingsDialog::GDSettingsDialog(QWidget *parent) : QDialog(parent)
 
 	connect(rem_game_btn, &QPushButton::clicked, this, &GDSettingsDialog::onRemoveGame);
 	connect(add_btn, &QPushButton::clicked, this, &GDSettingsDialog::onAddDir);
-	connect(rem_btn, &QPushButton::clicked, this, &GDSettingsDialog::onRemoveDir);
+	connect(m_dirs, &QListWidget::customContextMenuRequested, this, &GDSettingsDialog::onDirContextMenu);
 	connect(rst_btn, &QPushButton::clicked, this, &GDSettingsDialog::onRestoreDefaults);
 	connect(ref_btn, &QPushButton::clicked, this, &GDSettingsDialog::onRefreshLibraries);
 	connect(btns->button(QDialogButtonBox::Apply), &QPushButton::clicked, this, &GDSettingsDialog::onApply);
@@ -394,6 +395,40 @@ void GDSettingsDialog::loadData()
 	for (int i = 0; i < snap->custom_dir_count; i++) {
 		auto *it = new QListWidgetItem(QString::fromUtf8(snap->custom_dirs[i]), m_dirs);
 		it->setData(kDirDiscovered, false);
+		bool hidden = false;
+		for (int h = 0; h < snap->hidden_dir_count; h++) {
+			if (_stricmp(snap->hidden_dirs[h], snap->custom_dirs[i]) == 0) {
+				hidden = true;
+				break;
+			}
+		}
+		it->setData(kDirHidden, hidden);
+		if (hidden) {
+			it->setForeground(Qt::gray);
+			QFont f = it->font();
+			f.setStrikeOut(true);
+			it->setFont(f);
+		}
+	}
+	/* Mark discovered dirs that are hidden. */
+	for (int i = 0; i < m_dirs->count(); i++) {
+		auto *it = m_dirs->item(i);
+		if (!it->data(kDirDiscovered).toBool())
+			continue;
+		bool hidden = false;
+		for (int h = 0; h < snap->hidden_dir_count; h++) {
+			if (it->text().compare(QString::fromUtf8(snap->hidden_dirs[h]), Qt::CaseInsensitive) == 0) {
+				hidden = true;
+				break;
+			}
+		}
+		it->setData(kDirHidden, hidden);
+		if (hidden) {
+			it->setForeground(Qt::gray);
+			QFont f = it->font();
+			f.setStrikeOut(true);
+			it->setFont(f);
+		}
 	}
 }
 
@@ -436,9 +471,17 @@ void GDSettingsDialog::saveData()
 		auto *it = m_dirs->item(i);
 		if (it->data(kDirDiscovered).toBool())
 			continue;
-
+		/* Save custom dir regardless of hidden state. */
 		gd_dir_add_unique(scratch.custom_dirs, &scratch.custom_dir_count, GD_MAX_LOOKUP_DIRS,
 				  it->text().toUtf8().constData());
+	}
+
+	/* Collect all hidden dirs (both discovered and custom). */
+	for (int i = 0; i < m_dirs->count(); i++) {
+		auto *it = m_dirs->item(i);
+		if (it->data(kDirHidden).toBool())
+			gd_dir_add_unique(scratch.hidden_dirs, &scratch.hidden_dir_count, GD_MAX_LOOKUP_DIRS,
+					  it->text().toUtf8().constData());
 	}
 
 	for (int i = 0; i < m_scenes->count() && scratch.scene_count < GD_MAX_SCENES; i++) {
@@ -484,12 +527,59 @@ void GDSettingsDialog::onAddDir()
 	}
 }
 
-void GDSettingsDialog::onRemoveDir()
+void GDSettingsDialog::onDirContextMenu(const QPoint &pos)
 {
-	auto *it = m_dirs->currentItem();
-	if (!it || it->data(kDirDiscovered).toBool())
-		return;
-	delete it;
+	auto *it = m_dirs->itemAt(pos);
+	QMenu menu(this);
+
+	if (it) {
+		bool hidden = it->data(kDirHidden).toBool();
+		bool discovered = it->data(kDirDiscovered).toBool();
+
+		if (hidden) {
+			auto *show_act = menu.addAction("Show");
+			connect(show_act, &QAction::triggered, this, [this, it]() {
+				it->setData(kDirHidden, false);
+				it->setForeground(m_dirs->palette().color(QPalette::Text));
+				QFont f = it->font();
+				f.setStrikeOut(false);
+				it->setFont(f);
+			});
+		} else {
+			auto *hide_act = menu.addAction("Hide");
+			connect(hide_act, &QAction::triggered, this, [this, it]() {
+				it->setData(kDirHidden, true);
+				it->setForeground(Qt::gray);
+				QFont f = it->font();
+				f.setStrikeOut(true);
+				it->setFont(f);
+			});
+			/* Only custom (user-added) dirs can be removed entirely. */
+			if (!discovered) {
+				menu.addSeparator();
+				auto *del_act = menu.addAction("Remove");
+				connect(del_act, &QAction::triggered, this, [this, it]() { delete it; });
+			}
+		}
+		menu.addSeparator();
+	}
+
+	/* Show All — unhide every item. */
+	auto *show_all = menu.addAction("Show All");
+	connect(show_all, &QAction::triggered, this, [this]() {
+		for (int i = 0; i < m_dirs->count(); i++) {
+			auto *row = m_dirs->item(i);
+			if (!row->data(kDirHidden).toBool())
+				continue;
+			row->setData(kDirHidden, false);
+			row->setForeground(m_dirs->palette().color(QPalette::Text));
+			QFont f = row->font();
+			f.setStrikeOut(false);
+			row->setFont(f);
+		}
+	});
+
+	menu.exec(m_dirs->viewport()->mapToGlobal(pos));
 }
 
 void GDSettingsDialog::onRestoreDefaults()

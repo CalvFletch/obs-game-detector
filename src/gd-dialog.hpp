@@ -16,7 +16,7 @@ public:
 private slots:
 	void onRemoveGame();
 	void onAddDir();
-	void onRemoveDir();
+	void onDirContextMenu(const QPoint &pos);
 	void onRestoreDefaults();
 	void onRefreshLibraries();
 	void onApply();

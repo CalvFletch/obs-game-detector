@@ -76,6 +76,9 @@ typedef struct GD_ConfigSnap {
 	uint32_t default_tracks;
 	char custom_dirs[GD_MAX_LOOKUP_DIRS][GD_MAX_PATH];
 	int custom_dir_count;
+	/* Dirs (discovered or custom) excluded from game lookup. */
+	char hidden_dirs[GD_MAX_LOOKUP_DIRS][GD_MAX_PATH];
+	int hidden_dir_count;
 	char scenes[GD_MAX_SCENES][GD_MAX_SCENE_LEN];
 	int scene_count;
 } GD_ConfigSnap;
