@@ -1412,6 +1412,19 @@ bool gd_config_is_enabled(const GD_ConfigSnap *cfg, GD_GameId id)
 	return r && r->enabled && !r->hidden;
 }
 
+void gd_config_set_enabled(GD_State *state, GD_GameId id, bool enabled)
+{
+	if (!state || id == 0)
+		return;
+	for (int i = 0; i < state->config.game_count; i++) {
+		if (state->config.games[i].id == id) {
+			state->config.games[i].enabled = enabled;
+			save_json(&state->config);
+			return;
+		}
+	}
+}
+
 void gd_config_record_game(GD_State *state, GD_GameId id, const char *display_name, const char *install_dir)
 {
 	if (!state || !display_name || !*display_name || id == 0)

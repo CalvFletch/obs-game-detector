@@ -7,10 +7,15 @@
 #include <callback/calldata.h>
 
 #include <QCoreApplication>
+#include <QDialog>
+#include <QHBoxLayout>
+#include <QLabel>
 #include <QMainWindow>
+#include <QPushButton>
 #include <QStatusBar>
 #include <QSystemTrayIcon>
 #include <QTimer>
+#include <QVBoxLayout>
 
 #include <stdio.h>
 #include <string.h>
@@ -641,6 +646,7 @@ static void get_target_scenes(const GD_ConfigSnap *cfg, char scenes[][GD_MAX_SCE
 }
 
 static void show_obs_notification(const char *game_name);
+static void show_capture_prompt(const char *game_name, GD_GameId id);
 
 static void on_group_item_removed(void *data, calldata_t *cd)
 {
@@ -1232,9 +1238,10 @@ static void place_audio(GD_State *state, GD_TrackedGame *g, bool notify)
 	dedupe_captures_for_game_id(g->id, source);
 	wire_reinstate(g, placed);
 
-	if (placed && notify)
+	if (placed && notify) {
 		show_obs_notification(g->display_name);
-	else if (!placed && scene_count == 0) {
+		show_capture_prompt(g->display_name, g->id);
+	} else if (!placed && scene_count == 0) {
 		blog(LOG_WARNING, "[obs-game-detector] Could not place '%s': no target scenes configured",
 		     g->obs_source_name);
 	}
@@ -1386,6 +1393,54 @@ static void show_obs_notification(const char *game_name)
 		return;
 	QString msg = QString("Game Detector: now capturing audio for \"%1\"").arg(QString::fromUtf8(game_name));
 	mw->statusBar()->showMessage(msg, 6000);
+}
+
+static void show_capture_prompt(const char *game_name, GD_GameId id)
+{
+	auto *mw = (QMainWindow *)obs_frontend_get_main_window();
+
+	auto *dlg = new QDialog(mw, Qt::Tool | Qt::WindowStaysOnTopHint | Qt::FramelessWindowHint);
+	dlg->setAttribute(Qt::WA_DeleteOnClose);
+	dlg->setWindowTitle("Game Detector");
+
+	auto *root = new QVBoxLayout(dlg);
+	root->setContentsMargins(12, 10, 12, 10);
+	root->setSpacing(8);
+
+	auto *lbl = new QLabel(QString("Capturing audio: <b>%1</b>").arg(QString::fromUtf8(game_name)), dlg);
+	root->addWidget(lbl);
+
+	auto *btn_row = new QHBoxLayout();
+	btn_row->addStretch();
+	auto *mute_btn = new QPushButton("Do not capture", dlg);
+	btn_row->addWidget(mute_btn);
+	root->addLayout(btn_row);
+
+	dlg->adjustSize();
+
+	/* Position bottom-right of the main window */
+	if (mw) {
+		QRect r = mw->geometry();
+		dlg->move(r.right() - dlg->width() - 16, r.bottom() - dlg->height() - 40);
+	}
+
+	/* Auto-dismiss after 8 seconds */
+	auto *timer = new QTimer(dlg);
+	timer->setSingleShot(true);
+	QObject::connect(timer, &QTimer::timeout, dlg, &QDialog::accept);
+	timer->start(8000);
+
+	GD_GameId gid = id;
+	QObject::connect(mute_btn, &QPushButton::clicked, dlg, [dlg, gid]() {
+		GD_State *state = gd_state();
+		if (state) {
+			gd_config_set_enabled(state, gid, false);
+			gd_request_remove_source_by_id(gid);
+		}
+		dlg->accept();
+	});
+
+	dlg->show();
 }
 
 static void obs_teardown(GD_State *state)

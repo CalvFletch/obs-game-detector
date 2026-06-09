@@ -31,6 +31,7 @@ void gd_config_load(GD_State *state);
 bool gd_config_apply(GD_State *state, const GD_ConfigSnap *scratch);
 const GD_ConfigRecord *gd_config_find(const GD_ConfigSnap *cfg, GD_GameId id);
 bool gd_config_is_enabled(const GD_ConfigSnap *cfg, GD_GameId id);
+void gd_config_set_enabled(GD_State *state, GD_GameId id, bool enabled);
 uint32_t gd_config_mixer_mask(const GD_ConfigSnap *cfg, GD_GameId id);
 void gd_config_record_game(GD_State *state, GD_GameId id, const char *display_name, const char *install_dir);
 void gd_config_purge_orphaned_games(GD_ConfigSnap *snap, const GD_InstallIndex *idx, GD_GameId *removed_out,
