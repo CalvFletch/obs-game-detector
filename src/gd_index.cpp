@@ -170,7 +170,8 @@ bool gd_dir_add_unique(char dirs[][GD_MAX_PATH], int *count, int cap, const char
 
 	char norm[GD_MAX_PATH];
 	gd_strlcpy(norm, path, sizeof(norm));
-	path_to_watch_dir(norm);
+	path_normalize(norm); /* preserve original case; callers that need lowercase do so themselves */
+	path_rstrip_bs(norm);
 	if (!norm[0])
 		return false;
 	if (dir_list_contains(dirs, *count, norm))
@@ -338,15 +339,19 @@ static void add_lookup(GD_InstallIndex *idx, const char *path)
 	if (idx->lookup_dir_count >= GD_MAX_LOOKUP_DIRS || !path || !path[0])
 		return;
 
-	char lower[GD_MAX_PATH];
-	gd_strlcpy(lower, path, sizeof(lower));
-	path_to_install_dir(lower);
+	/* Store with original case; matching lowercases at use-site (gd_lookup_build). */
+	char norm[GD_MAX_PATH];
+	gd_strlcpy(norm, path, sizeof(norm));
+	path_normalize(norm);
+	path_rstrip_bs(norm);
+	if (!norm[0])
+		return;
 
 	for (int i = 0; i < idx->lookup_dir_count; i++)
-		if (_stricmp(idx->lookup_dirs[i], lower) == 0)
+		if (_stricmp(idx->lookup_dirs[i], norm) == 0)
 			return;
 
-	gd_strlcpy(idx->lookup_dirs[idx->lookup_dir_count], lower, GD_MAX_PATH);
+	gd_strlcpy(idx->lookup_dirs[idx->lookup_dir_count], norm, GD_MAX_PATH);
 	idx->lookup_dir_count++;
 }
 
@@ -839,7 +844,7 @@ bool gd_lookup_matches_full_path(const GD_LookupTable *lt, const char *full_path
 		return false;
 
 	char path_lower[GD_MAX_PATH];
-	gd_strlcpy(path_lower, full_path, sizeof(path_lower));
+	gd_strlower(path_lower, full_path, sizeof(path_lower));
 	path_to_install_dir(path_lower);
 	return gd_lookup_path_matches(lt, path_lower);
 }
@@ -853,14 +858,23 @@ void gd_lookup_build(GD_LookupTable *out, const GD_InstallIndex *idx, const GD_C
 
 	if (idx) {
 		for (int i = 0; i < idx->lookup_dir_count && n < GD_MAX_LOOKUP_DIRS; i++) {
-			if (gd_dir_add_unique(out->dirs, &out->dir_count, GD_MAX_LOOKUP_DIRS, idx->lookup_dirs[i]))
+			/* Lookup table paths are matched against lowercased WMI paths. */
+			char lower[GD_MAX_PATH];
+			gd_strlower(lower, idx->lookup_dirs[i], sizeof(lower));
+			path_normalize(lower);
+			if (gd_dir_add_unique(out->dirs, &out->dir_count, GD_MAX_LOOKUP_DIRS, lower))
 				ptrs[n++] = out->dirs[out->dir_count - 1];
 		}
 	}
 
 	if (cfg) {
 		for (int i = 0; i < cfg->custom_dir_count && n < GD_MAX_LOOKUP_DIRS; i++) {
-			if (gd_dir_add_unique(out->dirs, &out->dir_count, GD_MAX_LOOKUP_DIRS, cfg->custom_dirs[i]))
+			/* Lookup table paths are matched against lowercased WMI paths, so
+			 * they must be lowercase here even though we preserve case in storage. */
+			char lower[GD_MAX_PATH];
+			gd_strlower(lower, cfg->custom_dirs[i], sizeof(lower));
+			path_normalize(lower);
+			if (gd_dir_add_unique(out->dirs, &out->dir_count, GD_MAX_LOOKUP_DIRS, lower))
 				ptrs[n++] = out->dirs[out->dir_count - 1];
 		}
 	}
@@ -943,8 +957,29 @@ bool gd_lookup_resolve(const GD_State *state, const char *full_path, GD_GameId *
 		*last_bs = '\0';
 	path_rstrip_bs(dir_lower);
 
-	return resolve_from_index(&state->index, dir_lower, id_out, display_out, display_cap, install_dir_out,
-				  install_cap);
+	/* Save a copy before resolve_from_index walks up and truncates dir_lower. */
+	char dir_for_fallback[GD_MAX_PATH];
+	gd_strlcpy(dir_for_fallback, dir_lower, sizeof(dir_for_fallback));
+
+	if (resolve_from_index(&state->index, dir_lower, id_out, display_out, display_cap, install_dir_out,
+			       install_cap))
+		return true;
+
+	/* Fallback: synthesize from directory name for standalone installs
+	 * (e.g. games added via a custom lookup directory that have no
+	 * Steam/Epic/GOG manifest in the index). */
+	const char *leaf = strrchr(dir_for_fallback, '\\');
+	leaf = leaf ? leaf + 1 : dir_for_fallback;
+	if (!leaf || !leaf[0])
+		return false;
+
+	if (id_out)
+		*id_out = game_id_hash(dir_for_fallback);
+	if (display_out)
+		gd_strlcpy(display_out, leaf, display_cap);
+	if (install_dir_out)
+		gd_strlcpy(install_dir_out, dir_for_fallback, install_cap);
+	return true;
 }
 
 bool gd_lookup_dir_covered_by_index(const GD_InstallIndex *idx, const char *dir)
@@ -1005,7 +1040,28 @@ bool gd_lookup_sanitize_index_dirs(GD_InstallIndex *idx)
 
 		gd_strlcpy(orig, idx->lookup_dirs[i], sizeof(orig));
 		gd_strlcpy(root, orig, sizeof(root));
-		path_to_watch_dir(root);
+
+		/* Strip to library root while preserving original case.
+		 * Match against lowercase roots, truncate the original string. */
+		path_normalize(root);
+		{
+			static const char *rl[] = {
+				"\\steamapps\\common", "\\epic games",   "\\ubisoft game launcher\\games",
+				"\\ea games",          "\\origin games", NULL,
+			};
+			char lower[GD_MAX_PATH];
+			gd_strlower(lower, root, sizeof(lower));
+			for (int j = 0; rl[j]; j++) {
+				const char *hit = strstr(lower, rl[j]);
+				if (!hit)
+					continue;
+				size_t end = (size_t)(hit - lower) + strlen(rl[j]);
+				if (end < GD_MAX_PATH)
+					root[end] = '\0';
+				break;
+			}
+		}
+		path_rstrip_bs(root);
 
 		if (_stricmp(orig, root) != 0)
 			dirty = true;
@@ -1161,6 +1217,8 @@ static void save_json(const GD_ConfigSnap *snap)
 		obs_data_t *item = obs_data_create();
 		obs_data_set_string(item, "game_id", idhex);
 		obs_data_set_string(item, "display_name", r->display_name);
+		if (r->install_dir[0])
+			obs_data_set_string(item, "install_dir", r->install_dir);
 		obs_data_set_string(item, "last_seen", r->last_seen);
 		obs_data_set_bool(item, "enabled", r->enabled);
 		if (r->hidden)
@@ -1245,6 +1303,11 @@ static void load_json(GD_ConfigSnap *snap, const char *path, const GD_InstallInd
 			    obs_data_get_bool(item, "tracks_override")) {
 				r->tracks_override = true;
 				r->tracks = (uint32_t)obs_data_get_int(item, "tracks");
+			}
+			{
+				const char *idir = obs_data_get_string(item, "install_dir");
+				if (idir && *idir)
+					gd_strlcpy(r->install_dir, idir, GD_MAX_PATH);
 			}
 			obs_data_release(item);
 		}
@@ -1349,7 +1412,7 @@ bool gd_config_is_enabled(const GD_ConfigSnap *cfg, GD_GameId id)
 	return r && r->enabled && !r->hidden;
 }
 
-void gd_config_record_game(GD_State *state, GD_GameId id, const char *display_name)
+void gd_config_record_game(GD_State *state, GD_GameId id, const char *display_name, const char *install_dir)
 {
 	if (!state || !display_name || !*display_name || id == 0)
 		return;
@@ -1367,6 +1430,8 @@ void gd_config_record_game(GD_State *state, GD_GameId id, const char *display_na
 			gd_strlcpy(state->config.games[i].last_seen, today, sizeof(state->config.games[i].last_seen));
 			gd_strlcpy(state->config.games[i].display_name, label,
 				   sizeof(state->config.games[i].display_name));
+			if (install_dir && install_dir[0] && !state->config.games[i].install_dir[0])
+				gd_strlcpy(state->config.games[i].install_dir, install_dir, GD_MAX_PATH);
 			save_json(&state->config);
 			return;
 		}
@@ -1380,5 +1445,59 @@ void gd_config_record_game(GD_State *state, GD_GameId id, const char *display_na
 	r->enabled = true;
 	gd_strlcpy(r->display_name, label, sizeof(r->display_name));
 	gd_strlcpy(r->last_seen, today, sizeof(r->last_seen));
+	if (install_dir && install_dir[0])
+		gd_strlcpy(r->install_dir, install_dir, GD_MAX_PATH);
 	save_json(&state->config);
+}
+
+void gd_config_purge_orphaned_games(GD_ConfigSnap *snap, const GD_InstallIndex *idx, GD_GameId *removed_out,
+				    int *removed_count_out, int removed_cap)
+{
+	if (!snap || !idx)
+		return;
+	if (removed_count_out)
+		*removed_count_out = 0;
+
+	/* Build a temporary lookup from the snap's custom dirs + index dirs. */
+	GD_LookupTable lt = {};
+	gd_lookup_build(&lt, idx, snap);
+
+	GD_ConfigRecord kept[GD_MAX_GAMES];
+	int kept_count = 0;
+
+	for (int i = 0; i < snap->game_count; i++) {
+		GD_ConfigRecord *r = &snap->games[i];
+
+		/* Games in the install index are always kept regardless of dirs. */
+		if (gd_index_display_name(idx, r->id)) {
+			kept[kept_count++] = *r;
+			continue;
+		}
+
+		/* Games without a stored install_dir can't be located precisely.
+		 * If no custom dirs remain in the snap and the game isn't in the
+		 * install index, it must have come from a now-removed custom dir. */
+		if (!r->install_dir[0]) {
+			if (snap->custom_dir_count == 0) {
+				if (removed_out && removed_count_out && *removed_count_out < removed_cap)
+					removed_out[(*removed_count_out)++] = r->id;
+			} else {
+				kept[kept_count++] = *r;
+			}
+			continue;
+		}
+
+		/* Keep if the install_dir is still covered by the current lookup. */
+		if (gd_lookup_matches_full_path(&lt, r->install_dir)) {
+			kept[kept_count++] = *r;
+			continue;
+		}
+
+		/* Orphaned — record the ID for the caller to clean up sources. */
+		if (removed_out && removed_count_out && *removed_count_out < removed_cap)
+			removed_out[(*removed_count_out)++] = r->id;
+	}
+
+	snap->game_count = kept_count;
+	memcpy(snap->games, kept, sizeof(GD_ConfigRecord) * (size_t)kept_count);
 }

@@ -32,7 +32,9 @@ bool gd_config_apply(GD_State *state, const GD_ConfigSnap *scratch);
 const GD_ConfigRecord *gd_config_find(const GD_ConfigSnap *cfg, GD_GameId id);
 bool gd_config_is_enabled(const GD_ConfigSnap *cfg, GD_GameId id);
 uint32_t gd_config_mixer_mask(const GD_ConfigSnap *cfg, GD_GameId id);
-void gd_config_record_game(GD_State *state, GD_GameId id, const char *display_name);
+void gd_config_record_game(GD_State *state, GD_GameId id, const char *display_name, const char *install_dir);
+void gd_config_purge_orphaned_games(GD_ConfigSnap *snap, const GD_InstallIndex *idx, GD_GameId *removed_out,
+				    int *removed_count_out, int removed_cap);
 
 void gd_recording_tracks(GD_RecTracks *out);
 uint32_t gd_tracks_sanitize_mask(uint32_t mask, uint32_t allowed);
@@ -69,6 +71,7 @@ void gd_request_remove_source_by_id(GD_GameId id);
 void gd_request_index_rebuild(void);
 void gd_request_apply_audio_tracks(void);
 void gd_request_sync_scenes(void);
+void gd_request_rescan(void);
 void gd_ensure_group_in_scene(const char *scene_name);
 
 // watch

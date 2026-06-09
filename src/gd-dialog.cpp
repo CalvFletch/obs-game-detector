@@ -6,6 +6,8 @@
 #include <obs-frontend-api.h>
 #include <util/bmem.h>
 
+#include <QDir>
+
 #include <QTabWidget>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -393,6 +395,7 @@ void GDSettingsDialog::loadData()
 		}
 	}
 
+	m_scenes->blockSignals(true);
 	m_scenes->clear();
 	char **scene_names = obs_frontend_get_scene_names();
 	if (scene_names) {
@@ -409,12 +412,18 @@ void GDSettingsDialog::loadData()
 		}
 		bfree(scene_names);
 	}
+	m_scenes->blockSignals(false);
 
 	m_dirs->clear();
 	list_discovered_dirs(m_dirs, idx);
 	for (int i = 0; i < snap->custom_dir_count; i++) {
-		auto *it = new QListWidgetItem(QString::fromUtf8(snap->custom_dirs[i]), m_dirs);
+		QString path = QString::fromUtf8(snap->custom_dirs[i]);
+		auto *it = new QListWidgetItem(path, m_dirs);
 		it->setData(kDirDiscovered, false);
+		if (!QDir(path).exists()) {
+			it->setForeground(Qt::red);
+			it->setToolTip("Directory not found");
+		}
 	}
 }
 
@@ -451,7 +460,19 @@ void GDSettingsDialog::saveData()
 		if (r.tracks_override && r.tracks == scratch.default_tracks)
 			r.tracks_override = false;
 
+		/* Preserve install_dir from live config so purge can locate the game. */
+		const GD_ConfigRecord *existing = gd_config_find(&state->config, r.id);
+		if (existing && existing->install_dir[0])
+			gd_strlcpy(r.install_dir, existing->install_dir, sizeof(r.install_dir));
+
 		scratch.games[scratch.game_count++] = r;
+	}
+
+	/* Merge games auto-detected while the dialog was open (not reflected in the table). */
+	for (int i = 0; i < state->config.game_count && scratch.game_count < GD_MAX_GAMES; i++) {
+		const GD_ConfigRecord *live = &state->config.games[i];
+		if (!gd_config_find(&scratch, live->id))
+			scratch.games[scratch.game_count++] = *live;
 	}
 
 	for (int i = 0; i < m_dirs->count(); i++) {
@@ -470,10 +491,39 @@ void GDSettingsDialog::saveData()
 		}
 	}
 
+	/* Remove game entries whose install_dir is no longer covered by any lookup dir
+	 * (e.g. the user removed the custom directory that contained them). */
+	GD_GameId removed_ids[GD_MAX_GAMES];
+	int removed_count = 0;
+	gd_config_purge_orphaned_games(&scratch, &state->index, removed_ids, &removed_count, GD_MAX_GAMES);
+	for (int k = 0; k < removed_count; k++) {
+		for (int r = m_table->rowCount() - 1; r >= 1; r--) {
+			GD_GameId row_id = 0;
+			gd_game_id_from_hex(m_table->item(r, 0)->data(Qt::UserRole).toString().toUtf8().constData(),
+					    &row_id);
+			if (row_id == removed_ids[k]) {
+				m_table->removeRow(r);
+				break;
+			}
+		}
+	}
+
 	const GD_ConfigSnap *old_cfg = &state->config;
 	for (int i = 0; i < old_cfg->game_count; i++) {
 		if (!gd_config_find(&scratch, old_cfg->games[i].id))
 			gd_request_remove_source_by_id(old_cfg->games[i].id);
+	}
+
+	/* Detect if custom dirs gained any entries so we can re-scan running processes */
+	bool dirs_gained = scratch.custom_dir_count > old_cfg->custom_dir_count;
+	if (!dirs_gained) {
+		for (int i = 0; i < scratch.custom_dir_count && !dirs_gained; i++) {
+			bool found = false;
+			for (int j = 0; j < old_cfg->custom_dir_count && !found; j++)
+				found = (strcmp(scratch.custom_dirs[i], old_cfg->custom_dirs[j]) == 0);
+			if (!found)
+				dirs_gained = true;
+		}
 	}
 
 	gd_config_apply(state, &scratch);
@@ -482,6 +532,9 @@ void GDSettingsDialog::saveData()
 		if (!state->config.games[i].enabled || state->config.games[i].hidden)
 			gd_request_remove_source_by_id(state->config.games[i].id);
 	}
+
+	if (dirs_gained)
+		gd_request_rescan();
 
 	gd_request_apply_audio_tracks();
 	gd_request_sync_scenes();
@@ -561,6 +614,7 @@ void GDSettingsDialog::onAddDir()
 	QString dir = QFileDialog::getExistingDirectory(this, "Select Game Directory", {},
 							QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks);
 	if (!dir.isEmpty()) {
+		dir.replace('/', '\\');
 		auto *it = new QListWidgetItem(dir, m_dirs);
 		it->setData(kDirDiscovered, false);
 		saveData();

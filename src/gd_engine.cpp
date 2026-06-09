@@ -280,7 +280,7 @@ static void handle_process_start(GD_State *state, const GD_Event *evt)
 		return;
 	}
 
-	gd_config_record_game(state, id, display_name);
+	gd_config_record_game(state, id, display_name, install_dir);
 
 	const GD_ConfigSnap *cfg = &state->config;
 	if (!gd_config_is_enabled(cfg, id)) {
@@ -391,6 +391,9 @@ static void handle_event(GD_State *state, const GD_Event *evt)
 		break;
 	case GD_EVT_PLACE_AUDIO:
 		handle_place_audio(state, evt->game_id);
+		break;
+	case GD_EVT_RESCAN:
+		gd_watch_snapshot(&state->lookup);
 		break;
 	}
 }
@@ -1590,6 +1593,11 @@ void gd_request_apply_audio_tracks(void)
 void gd_request_sync_scenes(void)
 {
 	request_event(GD_EVT_SYNC_SCENES, 0);
+}
+
+void gd_request_rescan(void)
+{
+	request_event(GD_EVT_RESCAN, 0);
 }
 
 #ifdef __cplusplus

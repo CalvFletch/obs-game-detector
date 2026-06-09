@@ -63,6 +63,7 @@ typedef struct {
 typedef struct {
 	GD_GameId id;
 	char display_name[256];
+	char install_dir[GD_MAX_PATH]; /* lowercased install path; used to purge orphaned entries */
 	char last_seen[16];
 	bool enabled;
 	uint32_t tracks;
@@ -94,6 +95,7 @@ typedef enum {
 	GD_EVT_REMOVE_BY_ID,
 	GD_EVT_APPLY_TRACKS,
 	GD_EVT_PLACE_AUDIO,
+	GD_EVT_RESCAN,
 } GD_EventKind;
 
 typedef struct {
