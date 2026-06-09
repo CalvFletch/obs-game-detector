@@ -45,6 +45,7 @@ typedef struct {
 typedef struct {
 	GD_GameId id;
 	DWORD pid;
+	DWORD main_pid; /* non-zero when a _be.exe process has taken over tracking */
 	GD_GameState state;
 	char display_name[256];
 	char exe_lower[GD_MAX_PATH];

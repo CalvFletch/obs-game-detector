@@ -299,6 +299,14 @@ static void handle_process_start(GD_State *state, const GD_Event *evt)
 		blog(LOG_INFO, "[obs-game-detector] START pid %lu %s -> %s (pid %lu -> %lu)", (unsigned long)evt->pid,
 		     exe_lower, g->obs_source_name, (unsigned long)g->pid, (unsigned long)evt->pid);
 
+		/* When a _be.exe process takes over, save the real game pid so we can
+		 * recover when BE exits. Only save on the first BE takeover. */
+		bool incoming_is_be = (strstr(exe_lower, "_be.exe") != NULL);
+		if (incoming_is_be && g->main_pid == 0)
+			g->main_pid = g->pid;
+		else if (!incoming_is_be)
+			g->main_pid = 0; /* real exe restarted, clear saved pid */
+
 		reinstate_disconnect(g);
 		gd_watch_disarm_exit(g->pid);
 		g->pid = evt->pid;
@@ -342,6 +350,28 @@ static void handle_process_stop(GD_State *state, const GD_Event *evt)
 	GD_TrackedGame *g = tracker_find(&state->tracker, 0, evt->pid, TRACK_BY_PID);
 	if (!g)
 		return;
+
+	/* If a _be.exe process exits, check whether the real game exe is still
+	 * alive. If it is, re-track it instead of tearing down the source. */
+	if (g->main_pid != 0) {
+		HANDLE h = OpenProcess(SYNCHRONIZE, FALSE, g->main_pid);
+		bool main_alive = false;
+		if (h) {
+			DWORD code = 0;
+			main_alive = GetExitCodeProcess(h, &code) && code == STILL_ACTIVE;
+			CloseHandle(h);
+		}
+		if (main_alive) {
+			blog(LOG_INFO, "[obs-game-detector] BE pid %lu exited, re-tracking main pid %lu for %s",
+			     (unsigned long)evt->pid, (unsigned long)g->main_pid, g->obs_source_name);
+			gd_watch_disarm_exit(g->pid);
+			g->pid = g->main_pid;
+			g->main_pid = 0;
+			gd_watch_arm_exit(g->pid, g->exe_lower);
+			return;
+		}
+		g->main_pid = 0;
+	}
 
 	blog(LOG_INFO, "[obs-game-detector] STOP pid %lu %s -> %s", (unsigned long)evt->pid, evt->exe_lower,
 	     g->obs_source_name);
