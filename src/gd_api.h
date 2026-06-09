@@ -20,7 +20,6 @@ extern "C" {
 // lifecycle (plugin-main)
 void gd_start(void);
 void gd_stop(void);
-void gd_teardown(void);
 void gd_open_dialog(void);
 
 // state

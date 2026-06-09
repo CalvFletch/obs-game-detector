@@ -45,7 +45,7 @@ typedef struct {
 typedef struct {
 	GD_GameId id;
 	DWORD pid;
-	DWORD main_pid; /* non-zero when a _be.exe process has taken over tracking */
+	DWORD main_pid;
 	GD_GameState state;
 	char display_name[256];
 	char exe_lower[GD_MAX_PATH];
@@ -64,12 +64,12 @@ typedef struct {
 typedef struct {
 	GD_GameId id;
 	char display_name[256];
-	char install_dir[GD_MAX_PATH]; /* lowercased install path; used to purge orphaned entries */
+	char install_dir[GD_MAX_PATH];
 	char last_seen[16];
 	bool enabled;
 	uint32_t tracks;
 	bool tracks_override;
-	bool hidden; /* hidden from dialog table; still stored in config */
+	bool hidden;
 } GD_ConfigRecord;
 
 typedef struct GD_ConfigSnap {

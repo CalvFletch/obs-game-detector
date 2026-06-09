@@ -31,7 +31,7 @@ static void on_frontend_event(enum obs_frontend_event event, void *unused)
 		obs_queue_task(OBS_TASK_UI, gd_start_task, NULL, false);
 	} else if (event == OBS_FRONTEND_EVENT_SCRIPTING_SHUTDOWN) {
 		obs_log(LOG_INFO, "[obs-game-detector] OBS shutting down, stopping detector");
-		gd_teardown();
+		gd_stop();
 	}
 }
 

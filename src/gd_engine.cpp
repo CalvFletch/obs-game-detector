@@ -77,9 +77,9 @@ static GD_TrackedGame *tracker_find(GD_Tracker *t, GD_GameId id, DWORD pid, int 
 	return ctx.found;
 }
 
-static int tracker_count_by_id(const GD_Tracker *t, GD_GameId id)
+static int tracker_count_by_id(GD_Tracker *t, GD_GameId id)
 {
-	return tracker_scan((GD_Tracker *)t, id, 0, true, false, NULL, NULL);
+	return tracker_scan(t, id, 0, true, false, NULL, NULL);
 }
 
 typedef void (*tracker_visit_fn)(GD_TrackedGame *g, void *ctx);
@@ -1640,11 +1640,6 @@ void gd_session_end(void)
 	memset(state, 0, sizeof(*state));
 
 	blog(LOG_INFO, "[obs-game-detector] detector stopped");
-}
-
-void gd_teardown(void)
-{
-	gd_session_end();
 }
 
 void gd_stop(void)
