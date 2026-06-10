@@ -304,16 +304,26 @@ static void handle_process_start(GD_State *state, const GD_Event *evt)
 		blog(LOG_INFO, "[obs-game-detector] START pid %lu %s -> %s (pid %lu -> %lu)", (unsigned long)evt->pid,
 		     exe_lower, g->obs_source_name, (unsigned long)g->pid, (unsigned long)evt->pid);
 
-		/* When a _be.exe process takes over, save the real game pid so we can
-		 * recover when BE exits. Only save on the first BE takeover. */
+		/* When a _be.exe process takes over, save the real game pid and arm
+		 * a *second* exit watch on BE. Keep the main exit watch alive so we
+		 * still detect when the user kills the game directly. */
 		bool incoming_is_be = (strstr(exe_lower, "_be.exe") != NULL);
 		if (incoming_is_be && g->main_pid == 0) {
 			g->main_pid = g->pid;
 			gd_strlcpy(g->main_exe, g->exe_lower, sizeof(g->main_exe));
+			/* arm BE exit watch; don't disarm main watch, don't reassign g->pid */
+			gd_watch_arm_exit(evt->pid, exe_lower);
+			g->be_pid = evt->pid;
+			g->state = GD_GAME_DETECTED;
+			return;
 		} else if (!incoming_is_be) {
+			if (g->be_pid != 0) {
+				gd_watch_disarm_exit(g->be_pid);
+				g->be_pid = 0;
+			}
 			g->main_pid = 0;
 			g->main_exe[0] = '\0';
-		} /* real exe restarted, clear saved pid */
+		} /* real exe restarted, clear saved pids */
 
 		reinstate_disconnect(g);
 		gd_watch_disarm_exit(g->pid);
@@ -356,46 +366,69 @@ static void handle_process_start(GD_State *state, const GD_Event *evt)
 static void handle_process_stop(GD_State *state, const GD_Event *evt)
 {
 	GD_TrackedGame *g = tracker_find(&state->tracker, 0, evt->pid, TRACK_BY_PID);
+
+	/* If the PID doesn't match any tracked game's main pid, check if it's a
+	 * BE process that took over (be_pid). */
+	if (!g) {
+		for (int i = 0; i < state->tracker.count; i++) {
+			if (state->tracker.games[i].be_pid == evt->pid) {
+				g = &state->tracker.games[i];
+				break;
+			}
+		}
+	}
+
 	if (!g)
 		return;
 
-	/* If a _be.exe process exits, check whether the real game exe is still
-	 * alive. If it is, re-track it instead of tearing down the source.
-	 * Also verify the exe name matches — the PID may have been recycled. */
-	if (g->main_pid != 0) {
-		HANDLE h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | SYNCHRONIZE, FALSE, g->main_pid);
-		bool main_alive = false;
-		if (h) {
-			char img[GD_MAX_PATH] = {0};
-			DWORD sz = GD_MAX_PATH - 1;
-			if (QueryFullProcessImageNameA(h, 0, img, &sz) && img[0]) {
-				const char *fn = strrchr(img, '\\');
-				fn = fn ? fn + 1 : img;
-				char lower[GD_MAX_PATH];
-				gd_strlower(lower, fn, sizeof(lower));
-				if (strcmp(lower, g->main_exe) == 0) {
-					DWORD code = 0;
-					main_alive = GetExitCodeProcess(h, &code) && code == STILL_ACTIVE;
+	/* BE process exited. Check if the main game exe is still alive.
+	 * Verify the exe name matches — the PID may have been recycled. */
+	if (g->be_pid != 0 && evt->pid == g->be_pid) {
+		gd_watch_disarm_exit(g->be_pid);
+		g->be_pid = 0;
+
+		if (g->main_pid != 0 && g->main_exe[0]) {
+			HANDLE h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | SYNCHRONIZE, FALSE, g->main_pid);
+			bool main_alive = false;
+			if (h) {
+				char img[GD_MAX_PATH] = {0};
+				DWORD sz = GD_MAX_PATH - 1;
+				if (QueryFullProcessImageNameA(h, 0, img, &sz) && img[0]) {
+					const char *fn = strrchr(img, '\\');
+					fn = fn ? fn + 1 : img;
+					char lower[GD_MAX_PATH];
+					gd_strlower(lower, fn, sizeof(lower));
+					if (strcmp(lower, g->main_exe) == 0) {
+						DWORD code = 0;
+						main_alive = GetExitCodeProcess(h, &code) && code == STILL_ACTIVE;
+					}
 				}
+				CloseHandle(h);
 			}
-			CloseHandle(h);
-		}
-		if (main_alive) {
-			blog(LOG_INFO, "[obs-game-detector] BE pid %lu exited, re-tracking main pid %lu for %s",
-			     (unsigned long)evt->pid, (unsigned long)g->main_pid, g->obs_source_name);
-			gd_watch_disarm_exit(g->pid);
-			g->pid = g->main_pid;
+			if (main_alive) {
+				blog(LOG_INFO, "[obs-game-detector] BE pid %lu exited, main pid %lu still alive for %s",
+				     (unsigned long)evt->pid, (unsigned long)g->main_pid, g->obs_source_name);
+				g->main_pid = 0;
+				g->main_exe[0] = '\0';
+				return;
+			}
 			g->main_pid = 0;
 			g->main_exe[0] = '\0';
-			gd_watch_arm_exit(g->pid, g->exe_lower);
-			return;
 		}
-		g->main_pid = 0;
-		g->main_exe[0] = '\0';
+		/* BE exited and main is dead — fall through to source removal */
+		blog(LOG_INFO, "[obs-game-detector] BE pid %lu exited, main game dead: removing %s",
+		     (unsigned long)evt->pid, g->obs_source_name);
+	} else {
+		/* Main game process exited. Also clean up any BE watch. */
+		if (g->be_pid != 0) {
+			gd_watch_disarm_exit(g->be_pid);
+			g->be_pid = 0;
+			g->main_pid = 0;
+			g->main_exe[0] = '\0';
+		}
+		blog(LOG_INFO, "[obs-game-detector] STOP pid %lu %s -> %s", (unsigned long)evt->pid, evt->exe_lower,
+		     g->obs_source_name);
 	}
-
-	blog(LOG_INFO, "[obs-game-detector] STOP pid %lu %s -> %s", (unsigned long)evt->pid, evt->exe_lower,
-	     g->obs_source_name);
 
 	if (state->phase == GD_PHASE_RUNNING)
 		remove_audio(state, g);
