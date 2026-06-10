@@ -307,10 +307,13 @@ static void handle_process_start(GD_State *state, const GD_Event *evt)
 		/* When a _be.exe process takes over, save the real game pid so we can
 		 * recover when BE exits. Only save on the first BE takeover. */
 		bool incoming_is_be = (strstr(exe_lower, "_be.exe") != NULL);
-		if (incoming_is_be && g->main_pid == 0)
+		if (incoming_is_be && g->main_pid == 0) {
 			g->main_pid = g->pid;
-		else if (!incoming_is_be)
-			g->main_pid = 0; /* real exe restarted, clear saved pid */
+			gd_strlcpy(g->main_exe, g->exe_lower, sizeof(g->main_exe));
+		} else if (!incoming_is_be) {
+			g->main_pid = 0;
+			g->main_exe[0] = '\0';
+		} /* real exe restarted, clear saved pid */
 
 		reinstate_disconnect(g);
 		gd_watch_disarm_exit(g->pid);
@@ -357,13 +360,24 @@ static void handle_process_stop(GD_State *state, const GD_Event *evt)
 		return;
 
 	/* If a _be.exe process exits, check whether the real game exe is still
-	 * alive. If it is, re-track it instead of tearing down the source. */
+	 * alive. If it is, re-track it instead of tearing down the source.
+	 * Also verify the exe name matches — the PID may have been recycled. */
 	if (g->main_pid != 0) {
-		HANDLE h = OpenProcess(SYNCHRONIZE, FALSE, g->main_pid);
+		HANDLE h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | SYNCHRONIZE, FALSE, g->main_pid);
 		bool main_alive = false;
 		if (h) {
-			DWORD code = 0;
-			main_alive = GetExitCodeProcess(h, &code) && code == STILL_ACTIVE;
+			char img[GD_MAX_PATH] = {0};
+			DWORD sz = GD_MAX_PATH - 1;
+			if (QueryFullProcessImageNameA(h, 0, img, &sz) && img[0]) {
+				const char *fn = strrchr(img, '\\');
+				fn = fn ? fn + 1 : img;
+				char lower[GD_MAX_PATH];
+				gd_strlower(lower, fn, sizeof(lower));
+				if (strcmp(lower, g->main_exe) == 0) {
+					DWORD code = 0;
+					main_alive = GetExitCodeProcess(h, &code) && code == STILL_ACTIVE;
+				}
+			}
 			CloseHandle(h);
 		}
 		if (main_alive) {
@@ -372,10 +386,12 @@ static void handle_process_stop(GD_State *state, const GD_Event *evt)
 			gd_watch_disarm_exit(g->pid);
 			g->pid = g->main_pid;
 			g->main_pid = 0;
+			g->main_exe[0] = '\0';
 			gd_watch_arm_exit(g->pid, g->exe_lower);
 			return;
 		}
 		g->main_pid = 0;
+		g->main_exe[0] = '\0';
 	}
 
 	blog(LOG_INFO, "[obs-game-detector] STOP pid %lu %s -> %s", (unsigned long)evt->pid, evt->exe_lower,
