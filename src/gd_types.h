@@ -17,7 +17,7 @@
 #define GD_DEFAULT_GROUP    "Game Audio"
 #define GD_COLOR_ORANGE     7
 #define GD_INDEX_REBUILD_MS (30ULL * 60 * 1000)
-#define GD_RESCAN_MS        (5000ULL)
+#define GD_RESCAN_MS        (30000ULL)
 
 #define GD_SOURCE_KEY_GAME_ID "gd_game_id"
 #define GD_SOURCE_KEY_PID     "gd_pid"
@@ -149,8 +149,6 @@ typedef struct {
 	/* Scene item IDs for the "Game Audio" group item in each target scene.
 	 * Index corresponds to config.scenes[]. 0 means not yet placed. */
 	int64_t grp_item_ids[GD_MAX_SCENES];
-	char known_exes[GD_MAX_GAMES][GD_MAX_PATH];
-	int known_exe_count;
 } GD_State;
 
 static inline const GD_ConfigSnap *gd_config_of(const GD_State *state)

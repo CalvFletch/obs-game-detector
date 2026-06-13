@@ -419,12 +419,32 @@ static DWORD WINAPI wmi_thread_func(LPVOID)
 	return 0;
 }
 
-/* Cheap targeted scan: only checks processes whose exe name matches a known
- * game we've seen before. No OpenProcess for non-matches. ~300 strcmp + at
- * most known_exe_count OpenProcess calls. Used as WMI fallback. */
+/* Targeted WMI fallback: iterates running processes and only does a full
+ * path lookup when the exe name matches a currently tracked game. Exe names
+ * are derived from the tracker on every call (bounded to GD_MAX_GAMES). */
 void gd_watch_rescan_known(const GD_State *state)
 {
-	if (!state || state->known_exe_count == 0)
+	if (!state || state->tracker.count == 0)
+		return;
+
+	/* Collect unique exe names from the tracker. */
+	char exes[GD_MAX_GAMES][GD_MAX_PATH];
+	int exe_count = 0;
+	for (int i = 0; i < state->tracker.count && exe_count < GD_MAX_GAMES; i++) {
+		const char *c = state->tracker.games[i].exe_lower;
+		if (!c[0])
+			continue;
+		bool dup = false;
+		for (int j = 0; j < exe_count; j++) {
+			if (strcmp(exes[j], c) == 0) {
+				dup = true;
+				break;
+			}
+		}
+		if (!dup)
+			gd_strlcpy(exes[exe_count++], c, GD_MAX_PATH);
+	}
+	if (exe_count == 0)
 		return;
 
 	HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
@@ -442,17 +462,16 @@ void gd_watch_rescan_known(const GD_State *state)
 			char exe_lower[GD_MAX_PATH];
 			gd_strlower(exe_lower, exe_narrow, sizeof(exe_lower));
 
-			bool known = false;
-			for (int i = 0; i < state->known_exe_count; i++) {
-				if (strcmp(exe_lower, state->known_exes[i]) == 0) {
-					known = true;
+			bool hit = false;
+			for (int k = 0; k < exe_count; k++) {
+				if (strcmp(exe_lower, exes[k]) == 0) {
+					hit = true;
 					break;
 				}
 			}
-			if (!known)
+			if (!hit)
 				continue;
 
-			/* Exe name matches a known game — verify via full path lookup. */
 			char full_path[GD_MAX_PATH] = {0};
 			HANDLE hp = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pe.th32ProcessID);
 			if (hp) {
