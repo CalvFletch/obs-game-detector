@@ -1258,6 +1258,8 @@ static void save_json(const GD_ConfigSnap *snap)
 
 	if (snap->hide_capture_prompt)
 		obs_data_set_bool(root, "hide_capture_prompt", true);
+	if (snap->verbose_logging)
+		obs_data_set_bool(root, "verbose_logging", true);
 
 	obs_data_save_json_safe(root, path, ".tmp", ".bak");
 	obs_data_release(root);
@@ -1352,6 +1354,8 @@ static void load_json(GD_ConfigSnap *snap, const char *path, const GD_InstallInd
 
 	snap->hide_capture_prompt = obs_data_has_user_value(data, "hide_capture_prompt") &&
 				    obs_data_get_bool(data, "hide_capture_prompt");
+	snap->verbose_logging = obs_data_has_user_value(data, "verbose_logging") &&
+				obs_data_get_bool(data, "verbose_logging");
 
 	obs_data_release(data);
 }
@@ -1382,6 +1386,10 @@ void gd_config_load(GD_State *state)
 	char path[1024];
 	if (path_config_file(path, sizeof(path), "config.json"))
 		load_json(&scratch, path, &state->index);
+
+	if (gd_verbose_logging())
+		blog(LOG_DEBUG, "[obs-game-detector] config loaded: %d games, %d custom dirs, %d scenes",
+		     scratch.game_count, scratch.custom_dir_count, scratch.scene_count);
 
 	if (snap_sanitize(&scratch, &state->index))
 		save_json(&scratch);

@@ -38,6 +38,7 @@ void gd_config_purge_orphaned_games(GD_ConfigSnap *snap, const GD_InstallIndex *
 
 void gd_recording_tracks(GD_RecTracks *out);
 uint32_t gd_tracks_sanitize_mask(uint32_t mask, uint32_t allowed);
+bool gd_verbose_logging(void);
 
 bool gd_install_index_load_or_build(GD_InstallIndex *idx, const char *cache_path);
 void gd_install_index_build(GD_InstallIndex *idx);

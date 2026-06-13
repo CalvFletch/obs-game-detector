@@ -157,6 +157,9 @@ GDSettingsDialog::GDSettingsDialog(QWidget *parent) : QDialog(parent)
 	m_tabs->addTab(scenes_page, "Target Scenes");
 
 	auto *btns = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
+
+	m_verbose_chk = new QCheckBox("Verbose logging (detailed diagnostics in OBS log)", this);
+	root->addWidget(m_verbose_chk);
 	root->addWidget(btns);
 
 	connect(m_table, &QTableWidget::customContextMenuRequested, this, &GDSettingsDialog::onGameContextMenu);
@@ -425,6 +428,8 @@ void GDSettingsDialog::loadData()
 			it->setToolTip("Directory not found");
 		}
 	}
+
+	m_verbose_chk->setChecked(state->config.verbose_logging);
 }
 
 void GDSettingsDialog::saveData()
@@ -525,6 +530,10 @@ void GDSettingsDialog::saveData()
 				dirs_gained = true;
 		}
 	}
+
+	/* Carry forward flags not managed by the dialog tables. */
+	scratch.hide_capture_prompt = old_cfg->hide_capture_prompt;
+	scratch.verbose_logging = m_verbose_chk->isChecked();
 
 	gd_config_apply(state, &scratch);
 

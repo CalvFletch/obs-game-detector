@@ -69,6 +69,10 @@ static void post_start(DWORD pid, const char *exe_lower, const char *full_path)
 	if (!state || !state->post_event)
 		return;
 
+	if (gd_verbose_logging())
+		blog(LOG_DEBUG, "[obs-game-detector] post_start: pid=%lu exe=%s path=%s", (unsigned long)pid, exe_lower,
+		     full_path ? full_path : "");
+
 	GD_Event evt = {};
 	evt.kind = GD_EVT_PROCESS_START;
 	evt.pid = pid;
@@ -82,6 +86,9 @@ static void post_stop(DWORD pid, const char *exe_lower)
 	GD_State *state = gd_state();
 	if (!state || !state->post_event)
 		return;
+
+	if (gd_verbose_logging())
+		blog(LOG_DEBUG, "[obs-game-detector] post_stop: pid=%lu exe=%s", (unsigned long)pid, exe_lower);
 
 	GD_Event evt = {};
 	evt.kind = GD_EVT_PROCESS_STOP;
@@ -133,6 +140,10 @@ static VOID CALLBACK on_process_exit(PVOID ctx, BOOLEAN timed_out)
 	exit_watch_t *slot = (exit_watch_t *)ctx;
 	if (!slot || !slot->active)
 		return;
+
+	if (gd_verbose_logging())
+		blog(LOG_DEBUG, "[obs-game-detector] on_process_exit: pid=%lu exe=%s", (unsigned long)slot->pid,
+		     slot->exe);
 
 	DWORD pid = slot->pid;
 	char exe[GD_MAX_PATH];
@@ -378,6 +389,9 @@ public:
 
 	HRESULT STDMETHODCALLTYPE Indicate(LONG count, IWbemClassObject **objs) override
 	{
+		if (gd_verbose_logging())
+			blog(LOG_DEBUG, "[obs-game-detector] WMI Indicate: %ld event(s)", (long)count);
+
 		for (LONG i = 0; i < count; i++) {
 			char exe_lower[GD_MAX_PATH];
 			DWORD pid = 0;
@@ -465,6 +479,7 @@ static bool setup_wmi(void)
 	/* Preferred: Win32_ProcessStartTrace is an extrinsic ETW-backed event that
 	 * fires the instant a process starts. No WITHIN clause => true push, no
 	 * repository polling. Requires the host process to be elevated. */
+	bool using_trace = false;
 	BSTR trace_query = SysAllocString(L"SELECT * FROM Win32_ProcessStartTrace");
 	hr = s_wmi_svc->ExecNotificationQueryAsync(lang, trace_query, WBEM_FLAG_SEND_STATUS, NULL, sink);
 	SysFreeString(trace_query);
@@ -476,6 +491,8 @@ static bool setup_wmi(void)
 						      L"WHERE TargetInstance ISA 'Win32_Process'");
 		hr = s_wmi_svc->ExecNotificationQueryAsync(lang, intrinsic_query, WBEM_FLAG_SEND_STATUS, NULL, sink);
 		SysFreeString(intrinsic_query);
+	} else {
+		using_trace = true;
 	}
 
 	SysFreeString(lang);
@@ -492,6 +509,10 @@ static bool setup_wmi(void)
 		g_creation_sink.Release();
 		return false;
 	}
+
+	if (gd_verbose_logging())
+		blog(LOG_DEBUG, "[obs-game-detector] WMI subscribed: %s",
+		     using_trace ? "Win32_ProcessStartTrace" : "__InstanceCreationEvent WITHIN 1");
 
 	return true;
 }

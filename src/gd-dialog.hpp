@@ -34,6 +34,7 @@ private:
 	QTableWidget *m_table;
 	QListWidget *m_dirs;
 	QListWidget *m_scenes;
+	QCheckBox *m_verbose_chk;
 	bool m_showDisabled = false;
 	int m_rec_track_nums[6];
 	int m_rec_track_count;

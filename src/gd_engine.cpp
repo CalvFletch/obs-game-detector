@@ -444,10 +444,39 @@ static void handle_process_stop(GD_State *state, const GD_Event *evt)
 	}
 }
 
+static const char *event_kind_name(GD_EventKind kind)
+{
+	switch (kind) {
+	case GD_EVT_PROCESS_START:
+		return "PROCESS_START";
+	case GD_EVT_PROCESS_STOP:
+		return "PROCESS_STOP";
+	case GD_EVT_REBUILD_INDEX:
+		return "REBUILD_INDEX";
+	case GD_EVT_INDEX_READY:
+		return "INDEX_READY";
+	case GD_EVT_SYNC_SCENES:
+		return "SYNC_SCENES";
+	case GD_EVT_REMOVE_BY_ID:
+		return "REMOVE_BY_ID";
+	case GD_EVT_APPLY_TRACKS:
+		return "APPLY_TRACKS";
+	case GD_EVT_PLACE_AUDIO:
+		return "PLACE_AUDIO";
+	case GD_EVT_RESCAN:
+		return "RESCAN";
+	}
+	return "?";
+}
+
 static void handle_event(GD_State *state, const GD_Event *evt)
 {
 	if (!state || !evt)
 		return;
+
+	if (gd_verbose_logging())
+		blog(LOG_DEBUG, "[obs-game-detector] handle_event: %s (pid=%lu id=0x%llx)", event_kind_name(evt->kind),
+		     (unsigned long)evt->pid, (unsigned long long)evt->game_id);
 
 	switch (evt->kind) {
 	case GD_EVT_PROCESS_START:
@@ -1749,6 +1778,12 @@ void gd_request_sync_scenes(void)
 void gd_request_rescan(void)
 {
 	request_event(GD_EVT_RESCAN, 0);
+}
+
+bool gd_verbose_logging(void)
+{
+	GD_State *state = gd_state();
+	return state && state->config.verbose_logging;
 }
 
 #ifdef __cplusplus
