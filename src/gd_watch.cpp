@@ -257,7 +257,56 @@ static bool get_target_process(IWbemClassObject *event, IWbemClassObject **out_p
 	return SUCCEEDED(hr);
 }
 
-static bool read_process_event(IWbemClassObject *event, char *exe_lower, size_t exe_cap, DWORD *pid_out)
+static bool variant_to_pid(const VARIANT *v, DWORD *pid_out)
+{
+	switch (v->vt) {
+	case VT_I4:
+		*pid_out = (DWORD)v->lVal;
+		return true;
+	case VT_UI4:
+		*pid_out = (DWORD)v->ulVal;
+		return true;
+	case VT_BSTR:
+		*pid_out = (DWORD)wcstoul(v->bstrVal, NULL, 10);
+		return true;
+	default:
+		return false;
+	}
+}
+
+/* Read pid + exe name from a Win32_ProcessStartTrace extrinsic event.
+ * These properties (ProcessID, ProcessName) live directly on the event. */
+static bool read_trace_event(IWbemClassObject *event, char *exe_lower, size_t exe_cap, DWORD *pid_out)
+{
+	DWORD pid = 0;
+	VARIANT v;
+
+	VariantInit(&v);
+	if (FAILED(event->Get(L"ProcessID", 0, &v, NULL, NULL)) || !variant_to_pid(&v, &pid)) {
+		VariantClear(&v);
+		return false;
+	}
+	VariantClear(&v);
+
+	VariantInit(&v);
+	if (FAILED(event->Get(L"ProcessName", 0, &v, NULL, NULL)) || v.vt != VT_BSTR) {
+		VariantClear(&v);
+		return false;
+	}
+	WideCharToMultiByte(CP_ACP, 0, v.bstrVal, -1, exe_lower, (int)exe_cap, NULL, NULL);
+	VariantClear(&v);
+
+	for (char *p = exe_lower; *p; p++)
+		*p = (char)tolower((unsigned char)*p);
+
+	if (pid_out)
+		*pid_out = pid;
+	return exe_lower[0] != '\0';
+}
+
+/* Read pid + exe name from an intrinsic __InstanceCreationEvent (fallback path
+ * for environments where the trace provider isn't available). */
+static bool read_intrinsic_event(IWbemClassObject *event, char *exe_lower, size_t exe_cap, DWORD *pid_out)
 {
 	IWbemClassObject *proc = NULL;
 	if (!get_target_process(event, &proc))
@@ -266,13 +315,9 @@ static bool read_process_event(IWbemClassObject *event, char *exe_lower, size_t 
 	DWORD pid = 0;
 	VARIANT v;
 	VariantInit(&v);
-	if (SUCCEEDED(proc->Get(L"ProcessId", 0, &v, NULL, NULL))) {
-		if (v.vt == VT_I4)
-			pid = (DWORD)v.lVal;
-		else if (v.vt == VT_UI4)
-			pid = (DWORD)v.ulVal;
-		VariantClear(&v);
-	}
+	if (SUCCEEDED(proc->Get(L"ProcessId", 0, &v, NULL, NULL)))
+		variant_to_pid(&v, &pid);
+	VariantClear(&v);
 
 	VariantInit(&v);
 	if (FAILED(proc->Get(L"Name", 0, &v, NULL, NULL)) || v.vt != VT_BSTR) {
@@ -291,6 +336,14 @@ static bool read_process_event(IWbemClassObject *event, char *exe_lower, size_t 
 	if (pid_out)
 		*pid_out = pid;
 	return exe_lower[0] != '\0';
+}
+
+/* Try the trace event first; fall back to intrinsic parsing. */
+static bool read_process_event(IWbemClassObject *event, char *exe_lower, size_t exe_cap, DWORD *pid_out)
+{
+	if (read_trace_event(event, exe_lower, exe_cap, pid_out))
+		return true;
+	return read_intrinsic_event(event, exe_lower, exe_cap, pid_out);
 }
 
 class ProcessCreationSink : public IWbemObjectSink {
@@ -371,13 +424,25 @@ static bool setup_wmi(void)
 	}
 
 	BSTR lang = SysAllocString(L"WQL");
-	BSTR query = SysAllocString(L"SELECT * FROM __InstanceCreationEvent WITHIN 1 "
-				    L"WHERE TargetInstance ISA 'Win32_Process'");
 
-	hr = s_wmi_svc->ExecNotificationQueryAsync(lang, query, WBEM_FLAG_SEND_STATUS, NULL, &g_creation_sink);
+	/* Preferred: Win32_ProcessStartTrace is an extrinsic ETW-backed event that
+	 * fires the instant a process starts. No WITHIN clause => true push, no
+	 * repository polling. Requires the host process to be elevated. */
+	BSTR trace_query = SysAllocString(L"SELECT * FROM Win32_ProcessStartTrace");
+	hr = s_wmi_svc->ExecNotificationQueryAsync(lang, trace_query, WBEM_FLAG_SEND_STATUS, NULL, &g_creation_sink);
+	SysFreeString(trace_query);
+
+	if (FAILED(hr)) {
+		/* Fallback for non-elevated hosts: intrinsic creation event. This
+		 * polls the CIM repository on the WITHIN interval. */
+		BSTR intrinsic_query = SysAllocString(L"SELECT * FROM __InstanceCreationEvent WITHIN 1 "
+						      L"WHERE TargetInstance ISA 'Win32_Process'");
+		hr = s_wmi_svc->ExecNotificationQueryAsync(lang, intrinsic_query, WBEM_FLAG_SEND_STATUS, NULL,
+							   &g_creation_sink);
+		SysFreeString(intrinsic_query);
+	}
 
 	SysFreeString(lang);
-	SysFreeString(query);
 
 	if (FAILED(hr)) {
 		g_creation_sink.Release();
