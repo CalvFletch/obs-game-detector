@@ -511,8 +511,17 @@ static void processor_tick(void *unused)
 	if (mut)
 		obs_mut_begin(state, OBS_MUT_RUNNING);
 
-	if (state->obs_processor_depth == 1)
+	if (state->obs_processor_depth == 1) {
 		maybe_schedule_index_rebuild(state);
+
+		/* Periodically rescan running processes as a fallback for missed
+		 * WMI creation events (WMI WITHIN 0.1 polling is not 100% reliable). */
+		uint64_t now = gd_wall_ms();
+		if (now - state->last_rescan_ms >= GD_RESCAN_MS) {
+			state->last_rescan_ms = now;
+			gd_watch_snapshot(&state->lookup);
+		}
+	}
 
 	for (;;) {
 		int n = 0;
