@@ -1256,6 +1256,9 @@ static void save_json(const GD_ConfigSnap *snap)
 	obs_data_set_array(root, "scenes", sarr);
 	obs_data_array_release(sarr);
 
+	if (snap->hide_capture_prompt)
+		obs_data_set_bool(root, "hide_capture_prompt", true);
+
 	obs_data_save_json_safe(root, path, ".tmp", ".bak");
 	obs_data_release(root);
 }
@@ -1346,6 +1349,9 @@ static void load_json(GD_ConfigSnap *snap, const char *path, const GD_InstallInd
 
 	if (obs_data_has_user_value(data, "default_tracks"))
 		snap->default_tracks = (uint32_t)obs_data_get_int(data, "default_tracks");
+
+	snap->hide_capture_prompt = obs_data_has_user_value(data, "hide_capture_prompt") &&
+				    obs_data_get_bool(data, "hide_capture_prompt");
 
 	obs_data_release(data);
 }

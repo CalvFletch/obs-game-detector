@@ -16,6 +16,7 @@
 #include <QSystemTrayIcon>
 #include <QTimer>
 #include <QVBoxLayout>
+#include <QCheckBox>
 
 #include <stdio.h>
 #include <string.h>
@@ -1446,6 +1447,10 @@ static void show_obs_notification(const char *game_name)
 
 static void show_capture_prompt(const char *game_name, GD_GameId id)
 {
+	auto *state = gd_state();
+	if (!state || state->config.hide_capture_prompt)
+		return;
+
 	auto *mw = (QMainWindow *)obs_frontend_get_main_window();
 
 	auto *dlg = new QDialog(mw, Qt::Tool | Qt::WindowStaysOnTopHint | Qt::FramelessWindowHint);
@@ -1458,6 +1463,9 @@ static void show_capture_prompt(const char *game_name, GD_GameId id)
 
 	auto *lbl = new QLabel(QString("Capturing audio: <b>%1</b>").arg(QString::fromUtf8(game_name)), dlg);
 	root->addWidget(lbl);
+
+	auto *dont_show = new QCheckBox("Don't show this again", dlg);
+	root->addWidget(dont_show);
 
 	auto *btn_row = new QHBoxLayout();
 	btn_row->addStretch();
@@ -1473,19 +1481,33 @@ static void show_capture_prompt(const char *game_name, GD_GameId id)
 		dlg->move(r.right() - dlg->width() - 16, r.bottom() - dlg->height() - 40);
 	}
 
+	GD_GameId gid = id;
+	auto on_close = [dont_show, gid]() {
+		if (dont_show->isChecked()) {
+			auto *s = gd_state();
+			if (s) {
+				s->config.hide_capture_prompt = true;
+				gd_config_apply(s, &s->config);
+			}
+		}
+	};
+
 	/* Auto-dismiss after 8 seconds */
 	auto *timer = new QTimer(dlg);
 	timer->setSingleShot(true);
-	QObject::connect(timer, &QTimer::timeout, dlg, &QDialog::accept);
+	QObject::connect(timer, &QTimer::timeout, dlg, [dlg, on_close]() {
+		on_close();
+		dlg->accept();
+	});
 	timer->start(8000);
 
-	GD_GameId gid = id;
-	QObject::connect(mute_btn, &QPushButton::clicked, dlg, [dlg, gid]() {
-		GD_State *state = gd_state();
-		if (state) {
-			gd_config_set_enabled(state, gid, false);
+	QObject::connect(mute_btn, &QPushButton::clicked, dlg, [dlg, on_close, gid]() {
+		auto *s = gd_state();
+		if (s) {
+			gd_config_set_enabled(s, gid, false);
 			gd_request_remove_source_by_id(gid);
 		}
+		on_close();
 		dlg->accept();
 	});
 

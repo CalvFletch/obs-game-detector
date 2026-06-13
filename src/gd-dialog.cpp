@@ -85,13 +85,13 @@ GDSettingsDialog::GDSettingsDialog(QWidget *parent) : QDialog(parent)
 	auto *games_page = new QWidget;
 	auto *games_lay = new QVBoxLayout(games_page);
 
-	auto *hint = new QLabel(
-		"Capture: uncheck to stop recording audio for a game without removing it from the list. "
-		"Disable: right-click \u2192 Disable to grey out a game and stop capture; Enable to restore. "
-		"Tracks: tick boxes select which recording tracks carry audio for each game. "
-		"The Default row sets the baseline \u2014 game rows with no override inherit it. "
-		"All changes apply immediately.",
-		games_page);
+	auto *hint =
+		new QLabel("Capture: uncheck to stop recording audio for a game without removing it from the list. "
+			   "Disable: right-click -> Disable to grey out a game and stop capture; Enable to restore. "
+			   "Tracks: tick boxes select which recording tracks carry audio for each game. "
+			   "The Default row sets the baseline -- game rows with no override inherit it. "
+			   "All changes apply immediately.",
+			   games_page);
 	hint->setWordWrap(true);
 	games_lay->addWidget(hint);
 

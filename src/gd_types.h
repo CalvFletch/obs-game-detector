@@ -82,6 +82,7 @@ typedef struct GD_ConfigSnap {
 	int custom_dir_count;
 	char scenes[GD_MAX_SCENES][GD_MAX_SCENE_LEN];
 	int scene_count;
+	bool hide_capture_prompt;
 } GD_ConfigSnap;
 
 typedef struct {
