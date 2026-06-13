@@ -36,6 +36,11 @@ static proc_entry_t s_snapshot_procs[SNAPSHOT_CAP];
 static IWbemServices *s_wmi_svc = NULL;
 static HANDLE s_wmi_thread = NULL;
 static HANDLE s_wmi_stop = NULL;
+/* Async event delivery is routed through an unsecured apartment stub per
+ * Microsoft's guidance for async WMI event consumers. s_stub_sink is what we
+ * register/cancel with WMI; the real sink (g_creation_sink) sits behind it. */
+static IUnsecuredApartment *s_unsec_app = NULL;
+static IWbemObjectSink *s_stub_sink = NULL;
 static exit_watch_t s_exits[GD_MAX_GAMES];
 static CRITICAL_SECTION s_exit_lock;
 static bool s_exit_lock_init = false;
@@ -395,8 +400,13 @@ public:
 		return WBEM_S_NO_ERROR;
 	}
 
-	HRESULT STDMETHODCALLTYPE SetStatus(LONG, HRESULT, BSTR, IWbemClassObject *) override
+	HRESULT STDMETHODCALLTYPE SetStatus(LONG flags, HRESULT status, BSTR, IWbemClassObject *) override
 	{
+		/* WMI reports async call failures here rather than via the
+		 * ExecNotificationQueryAsync return value. Surface them. */
+		if (flags == WBEM_STATUS_COMPLETE && FAILED(status))
+			blog(LOG_ERROR, "[obs-game-detector] WMI event subscription error (0x%08lx)",
+			     (unsigned long)status);
 		return WBEM_S_NO_ERROR;
 	}
 };
@@ -423,13 +433,40 @@ static bool setup_wmi(void)
 		return false;
 	}
 
+	/* Wrap the real sink in an unsecured apartment stub so WMI delivers async
+	 * callbacks on a managed, secured thread (recommended for async event
+	 * consumers; avoids relying on process-wide CoInitializeSecurity which a
+	 * plugin doesn't own). Fall back to the raw sink if the apartment can't be
+	 * created. */
+	IWbemObjectSink *sink = &g_creation_sink;
+	hr = CoCreateInstance(CLSID_UnsecuredApartment, NULL, CLSCTX_LOCAL_SERVER, IID_IUnsecuredApartment,
+			      (void **)&s_unsec_app);
+	if (SUCCEEDED(hr)) {
+		IUnknown *stub_unk = NULL;
+		hr = s_unsec_app->CreateObjectStub(&g_creation_sink, &stub_unk);
+		if (SUCCEEDED(hr) && stub_unk) {
+			hr = stub_unk->QueryInterface(IID_IWbemObjectSink, (void **)&s_stub_sink);
+			stub_unk->Release();
+			if (SUCCEEDED(hr) && s_stub_sink)
+				sink = s_stub_sink;
+		}
+		if (!s_stub_sink) {
+			s_unsec_app->Release();
+			s_unsec_app = NULL;
+		}
+	} else {
+		s_unsec_app = NULL;
+		blog(LOG_DEBUG, "[obs-game-detector] unsecured apartment unavailable (0x%08lx), using direct sink",
+		     (unsigned long)hr);
+	}
+
 	BSTR lang = SysAllocString(L"WQL");
 
 	/* Preferred: Win32_ProcessStartTrace is an extrinsic ETW-backed event that
 	 * fires the instant a process starts. No WITHIN clause => true push, no
 	 * repository polling. Requires the host process to be elevated. */
 	BSTR trace_query = SysAllocString(L"SELECT * FROM Win32_ProcessStartTrace");
-	hr = s_wmi_svc->ExecNotificationQueryAsync(lang, trace_query, WBEM_FLAG_SEND_STATUS, NULL, &g_creation_sink);
+	hr = s_wmi_svc->ExecNotificationQueryAsync(lang, trace_query, WBEM_FLAG_SEND_STATUS, NULL, sink);
 	SysFreeString(trace_query);
 
 	if (FAILED(hr)) {
@@ -437,14 +474,21 @@ static bool setup_wmi(void)
 		 * polls the CIM repository on the WITHIN interval. */
 		BSTR intrinsic_query = SysAllocString(L"SELECT * FROM __InstanceCreationEvent WITHIN 1 "
 						      L"WHERE TargetInstance ISA 'Win32_Process'");
-		hr = s_wmi_svc->ExecNotificationQueryAsync(lang, intrinsic_query, WBEM_FLAG_SEND_STATUS, NULL,
-							   &g_creation_sink);
+		hr = s_wmi_svc->ExecNotificationQueryAsync(lang, intrinsic_query, WBEM_FLAG_SEND_STATUS, NULL, sink);
 		SysFreeString(intrinsic_query);
 	}
 
 	SysFreeString(lang);
 
 	if (FAILED(hr)) {
+		if (s_stub_sink) {
+			s_stub_sink->Release();
+			s_stub_sink = NULL;
+		}
+		if (s_unsec_app) {
+			s_unsec_app->Release();
+			s_unsec_app = NULL;
+		}
 		g_creation_sink.Release();
 		return false;
 	}
@@ -455,11 +499,21 @@ static bool setup_wmi(void)
 static void teardown_wmi(void)
 {
 	if (s_wmi_svc) {
-		s_wmi_svc->CancelAsyncCall(&g_creation_sink);
-		g_creation_sink.Release();
+		/* Cancel using the same sink pointer we registered with. */
+		IWbemObjectSink *sink = s_stub_sink ? s_stub_sink : (IWbemObjectSink *)&g_creation_sink;
+		s_wmi_svc->CancelAsyncCall(sink);
 		s_wmi_svc->Release();
 		s_wmi_svc = NULL;
 	}
+	if (s_stub_sink) {
+		s_stub_sink->Release();
+		s_stub_sink = NULL;
+	}
+	if (s_unsec_app) {
+		s_unsec_app->Release();
+		s_unsec_app = NULL;
+	}
+	g_creation_sink.Release();
 }
 
 static DWORD WINAPI wmi_thread_func(LPVOID)
