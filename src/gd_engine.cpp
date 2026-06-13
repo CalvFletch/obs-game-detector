@@ -353,6 +353,17 @@ static void handle_process_start(GD_State *state, const GD_Event *evt)
 		gd_strlcpy(g->install_dir, install_dir, sizeof(g->install_dir));
 		gd_strlcpy(g->obs_source_name, obs_name, sizeof(g->obs_source_name));
 
+		/* Cache exe name so the periodic fallback scan can check for it cheaply. */
+		bool known = false;
+		for (int k = 0; k < state->known_exe_count; k++) {
+			if (strcmp(state->known_exes[k], g->exe_lower) == 0) {
+				known = true;
+				break;
+			}
+		}
+		if (!known && state->known_exe_count < GD_MAX_GAMES)
+			gd_strlcpy(state->known_exes[state->known_exe_count++], g->exe_lower, GD_MAX_PATH);
+
 		blog(LOG_INFO, "[obs-game-detector] START pid %lu %s -> %s", (unsigned long)evt->pid, exe_lower,
 		     g->obs_source_name);
 	}
@@ -532,7 +543,7 @@ static void processor_tick(void *unused)
 		uint64_t now = gd_wall_ms();
 		if (now - state->last_rescan_ms >= GD_RESCAN_MS) {
 			state->last_rescan_ms = now;
-			gd_watch_snapshot(&state->lookup);
+			gd_watch_rescan_known(state);
 		}
 	}
 
@@ -1674,6 +1685,20 @@ void gd_start(void)
 	while (event_pending())
 		processor_tick(NULL);
 	state->phase = GD_PHASE_RUNNING;
+
+	/* Bootstrap known exe cache from the boot snapshot results. */
+	for (int i = 0; i < state->tracker.count && state->known_exe_count < GD_MAX_GAMES; i++) {
+		bool dup = false;
+		for (int j = 0; j < state->known_exe_count; j++) {
+			if (strcmp(state->known_exes[j], state->tracker.games[i].exe_lower) == 0) {
+				dup = true;
+				break;
+			}
+		}
+		if (!dup && state->tracker.games[i].exe_lower[0])
+			gd_strlcpy(state->known_exes[state->known_exe_count++], state->tracker.games[i].exe_lower,
+				   GD_MAX_PATH);
+	}
 
 	gd_watch_start();
 	schedule_boot_reconcile();
