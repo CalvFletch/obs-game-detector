@@ -76,7 +76,6 @@ void gd_ensure_group_in_scene(const char *scene_name);
 
 // watch
 void gd_watch_snapshot(const GD_LookupTable *lt);
-void gd_watch_rescan_known(const GD_State *state);
 bool gd_watch_start(void);
 void gd_watch_stop(void);
 void gd_watch_arm_exit(DWORD pid, const char *exe_lower);

@@ -514,8 +514,6 @@ static void processor_tick(void *unused)
 	if (state->obs_processor_depth == 1)
 		maybe_schedule_index_rebuild(state);
 
-	int events_processed = 0;
-
 	for (;;) {
 		int n = 0;
 		if (!pop_event_batch(state, s_event_batch, &n, GD_EVENT_QUEUE_CAP))
@@ -523,17 +521,6 @@ static void processor_tick(void *unused)
 		coalesce_events(s_event_batch, &n);
 		for (int i = 0; i < n; i++)
 			handle_event(state, &s_event_batch[i]);
-		events_processed += n;
-	}
-
-	/* If WMI delivered no events this tick, fall back to a process snapshot
-	 * (at most every GD_RESCAN_MS). Avoids wasted CPU when WMI is working. */
-	if (events_processed == 0 && state->obs_processor_depth == 1) {
-		uint64_t now = gd_wall_ms();
-		if (now - state->last_rescan_ms >= GD_RESCAN_MS) {
-			state->last_rescan_ms = now;
-			gd_watch_rescan_known(state);
-		}
 	}
 
 	if (mut)

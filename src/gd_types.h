@@ -17,7 +17,6 @@
 #define GD_DEFAULT_GROUP    "Game Audio"
 #define GD_COLOR_ORANGE     7
 #define GD_INDEX_REBUILD_MS (30ULL * 60 * 1000)
-#define GD_RESCAN_MS        (30000ULL)
 
 #define GD_SOURCE_KEY_GAME_ID "gd_game_id"
 #define GD_SOURCE_KEY_PID     "gd_pid"
@@ -140,7 +139,6 @@ typedef struct {
 	GD_Tracker tracker;
 	GD_EventRing events;
 	uint64_t index_built_ms;
-	uint64_t last_rescan_ms;
 	bool index_rebuild_pending;
 	bool obs_tick_scheduled;
 	int obs_processor_depth;

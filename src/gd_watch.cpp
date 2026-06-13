@@ -371,7 +371,7 @@ static bool setup_wmi(void)
 	}
 
 	BSTR lang = SysAllocString(L"WQL");
-	BSTR query = SysAllocString(L"SELECT * FROM __InstanceCreationEvent WITHIN 0.1 "
+	BSTR query = SysAllocString(L"SELECT * FROM __InstanceCreationEvent WITHIN 1 "
 				    L"WHERE TargetInstance ISA 'Win32_Process'");
 
 	hr = s_wmi_svc->ExecNotificationQueryAsync(lang, query, WBEM_FLAG_SEND_STATUS, NULL, &g_creation_sink);
@@ -417,77 +417,6 @@ static DWORD WINAPI wmi_thread_func(LPVOID)
 	if (own_com)
 		CoUninitialize();
 	return 0;
-}
-
-/* Targeted WMI fallback: iterates running processes and only does a full
- * path lookup when the exe name matches a currently tracked game. Exe names
- * are derived from the tracker on every call (bounded to GD_MAX_GAMES). */
-void gd_watch_rescan_known(const GD_State *state)
-{
-	if (!state || state->tracker.count == 0)
-		return;
-
-	/* Collect unique exe names from the tracker. */
-	char exes[GD_MAX_GAMES][GD_MAX_PATH];
-	int exe_count = 0;
-	for (int i = 0; i < state->tracker.count && exe_count < GD_MAX_GAMES; i++) {
-		const char *c = state->tracker.games[i].exe_lower;
-		if (!c[0])
-			continue;
-		bool dup = false;
-		for (int j = 0; j < exe_count; j++) {
-			if (strcmp(exes[j], c) == 0) {
-				dup = true;
-				break;
-			}
-		}
-		if (!dup)
-			gd_strlcpy(exes[exe_count++], c, GD_MAX_PATH);
-	}
-	if (exe_count == 0)
-		return;
-
-	HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-	if (snap == INVALID_HANDLE_VALUE)
-		return;
-
-	PROCESSENTRY32 pe;
-	pe.dwSize = sizeof(pe);
-
-	if (Process32First(snap, &pe)) {
-		do {
-			char exe_narrow[GD_MAX_PATH];
-			WideCharToMultiByte(CP_ACP, 0, pe.szExeFile, -1, exe_narrow, (int)sizeof(exe_narrow), NULL,
-					    NULL);
-			char exe_lower[GD_MAX_PATH];
-			gd_strlower(exe_lower, exe_narrow, sizeof(exe_lower));
-
-			bool hit = false;
-			for (int k = 0; k < exe_count; k++) {
-				if (strcmp(exe_lower, exes[k]) == 0) {
-					hit = true;
-					break;
-				}
-			}
-			if (!hit)
-				continue;
-
-			char full_path[GD_MAX_PATH] = {0};
-			HANDLE hp = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pe.th32ProcessID);
-			if (hp) {
-				DWORD sz = GD_MAX_PATH - 1;
-				QueryFullProcessImageNameA(hp, 0, full_path, &sz);
-				full_path[sz] = '\0';
-				CloseHandle(hp);
-			}
-			if (!full_path[0])
-				continue;
-
-			if (gd_lookup_matches_full_path(&state->lookup, full_path))
-				post_start(pe.th32ProcessID, exe_lower, full_path);
-		} while (Process32Next(snap, &pe));
-	}
-	CloseHandle(snap);
 }
 
 void gd_watch_snapshot(const GD_LookupTable *lt)
